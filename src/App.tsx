@@ -1,5 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, Square, Clock, Plus, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Pause, Square, Clock, Plus, Trash2, Save } from 'lucide-react';
+import { useTeamStorage } from './hooks/useTeamStorage';
+import { useGameTimer } from './hooks/useGameTimer';
+import { useDragAndDrop } from './hooks/useDragAndDrop';
+import { PlayerRow } from './PlayerRow';
+import { Team, Player } from './types';
+import './index.css';
 
 const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'AM', 'LW', 'RW', 'CF'];
 const FORMATIONS = ['1-4-4-2', '1-4-3-3'];
@@ -33,131 +39,60 @@ const FORMATION_LAYOUTS = {
   }
 };
 
-interface Player {
-  id: string;
-  firstName: string;
-  lastName: string;
-  number: string;
-  position: string;
-}
-interface Team {
-  id: string;
-  name: string;
-  players: Player[];
-}
-
 export default function SoccerTimeTracker() {
   const [view, setView] = useState('home');
-  const [teams, setTeams] = useState([]);
-  const [currentTeam, setCurrentTeam] = useState(null);
+  const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
   const [formation, setFormation] = useState('1-4-4-2');
-  const [formationAssignments, setFormationAssignments] = useState({});
+  const [formationAssignments, setFormationAssignments] = useState<Record<string, string>>({});
   const [gameName, setGameName] = useState('');
-  const [gameState, setGameState] = useState('stopped');
-  const [gameTime, setGameTime] = useState(0);
-  const [playerTimes, setPlayerTimes] = useState({});
-  const [activePlayerIds, setActivePlayerIds] = useState([]);
-  const [draggedPlayer, setDraggedPlayer] = useState(null);
-  const [draggedFromSlot, setDraggedFromSlot] = useState(null);
   
   const [teamNameInput, setTeamNameInput] = useState('');
   const [playerFirstName, setPlayerFirstName] = useState('');
   const [playerLastName, setPlayerLastName] = useState('');
   const [playerNumber, setPlayerNumber] = useState('');
   const [playerPosition, setPlayerPosition] = useState('');
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+
+  // Custom Hooks
+  const { teams, saveTeam, deleteTeam } = useTeamStorage();
   
-  const gameIntervalRef = useRef(null);
-  const activePlayerIdsRef = useRef([]);
-  
-  useEffect(() => {
-    activePlayerIdsRef.current = activePlayerIds;
-  }, [activePlayerIds]);
+  const { 
+    gameState, 
+    gameTime, 
+    playerTimes, 
+    activePlayerIds, 
+    setActivePlayerIds,
+    startGame, 
+    togglePlayPause, 
+    cancelGame 
+  } = useGameTimer();
 
-  useEffect(() => {
-    loadTeams();
-  }, []);
+  const {
+    draggedPlayer,
+    draggedFromSlot,
+    handleDragStart,
+    handleDragOver,
+    handleDropOnSlot,
+    handleDropOnBench
+  } = useDragAndDrop({ formationAssignments, setFormationAssignments, activePlayerIds, setActivePlayerIds, view });
 
-  const loadTeams = () => {
-    try {
-      const stored = localStorage.getItem('teams');
-      if (stored) {
-        setTeams(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.log('No teams found');
-    }
-  };
-
-  const saveTeam = (team: Team) => {
-    try {
-      const existingTeams = teams.filter(t => t.id !== team.id);
-      const updatedTeams = [...existingTeams, team];
-      localStorage.setItem('teams', JSON.stringify(updatedTeams));
-      setTeams(updatedTeams);
-    } catch (error) {
-      console.error('Error saving team:', error);
-    }
-  };
-
-  const deleteTeam = (teamId: string) => {
-    try {
-      const updatedTeams = teams.filter(t => t.id !== teamId);
-      localStorage.setItem('teams', JSON.stringify(updatedTeams));
-      setTeams(updatedTeams);
-    } catch (error) {
-      console.error('Error deleting team:', error);
-    }
-  };
-
-  useEffect(() => {
-    if (gameState === 'playing') {
-      gameIntervalRef.current = setInterval(() => {
-        setGameTime(prev => {
-          const newTime = prev + 1;
-          
-          if (newTime === 40 * 60) {
-            setGameState('paused');
-            clearInterval(gameIntervalRef.current);
-          }
-          
-          if (newTime === 80 * 60) {
-            setGameState('finished');
-            clearInterval(gameIntervalRef.current);
-          }
-          
-          return newTime;
-        });
-
-        setPlayerTimes(prev => {
-          const updated = { ...prev };
-          activePlayerIdsRef.current.forEach(id => {
-            updated[id] = (updated[id] || 0) + 1;
-          });
-          return updated;
-        });
-      }, 1000);
-    } else {
-      if (gameIntervalRef.current) {
-        clearInterval(gameIntervalRef.current);
-      }
-    }
-
-    return () => {
-      if (gameIntervalRef.current) {
-        clearInterval(gameIntervalRef.current);
-      }
-    };
-  }, [gameState]);
-
-  const formatTime = (seconds) => {
+  const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const cancelEditing = () => {
+    setEditingPlayerId(null);
+    setPlayerFirstName('');
+    setPlayerLastName('');
+    setPlayerNumber('');
+    setPlayerPosition('');
+  };
+
   const handleCreateTeam = () => {
     if (teamNameInput.trim()) {
-      const team = {
+      const team: Team = {
         id: Date.now().toString(),
         name: teamNameInput,
         players: []
@@ -166,12 +101,13 @@ export default function SoccerTimeTracker() {
       setCurrentTeam(team);
       setTeamNameInput('');
       setView('team-detail');
+      cancelEditing();
     }
   };
 
   const handleAddPlayer = () => {
     if (playerFirstName && playerLastName && playerNumber && playerPosition) {
-      const player = {
+      const player: Player = {
         id: Date.now().toString(),
         firstName: playerFirstName,
         lastName: playerLastName,
@@ -188,13 +124,47 @@ export default function SoccerTimeTracker() {
     }
   };
 
-  const removePlayer = (playerId) => {
-    const updated = { ...currentTeam, players: currentTeam.players.filter(p => p.id !== playerId) };
-    setCurrentTeam(updated);
-    saveTeam(updated);
+  const startEditing = (player: Player) => {
+    setEditingPlayerId(player.id);
+    setPlayerFirstName(player.firstName);
+    setPlayerLastName(player.lastName);
+    setPlayerNumber(player.number);
+    setPlayerPosition(player.position);
   };
 
-  const startGame = () => {
+  const handleUpdatePlayer = () => {
+    if (currentTeam && editingPlayerId && playerFirstName && playerLastName && playerNumber && playerPosition) {
+      const updatedPlayers = currentTeam.players.map(p => 
+        p.id === editingPlayerId 
+          ? { ...p, firstName: playerFirstName, lastName: playerLastName, number: playerNumber, position: playerPosition }
+          : p
+      );
+      const updatedTeam = { ...currentTeam, players: updatedPlayers };
+      setCurrentTeam(updatedTeam);
+      saveTeam(updatedTeam);
+      cancelEditing();
+    }
+  };
+
+  const removePlayer = (playerId: string) => {
+    if (!currentTeam) return;
+    if (window.confirm('Are you sure you want to remove this player?')) {
+      const updated = { ...currentTeam, players: currentTeam.players.filter(p => p.id !== playerId) };
+      setCurrentTeam(updated);
+      saveTeam(updated);
+    }
+  };
+
+  const handleClearPlayers = () => {
+    if (!currentTeam) return;
+    if (window.confirm('Are you sure you want to remove all players from this team?')) {
+      const updated = { ...currentTeam, players: [] };
+      setCurrentTeam(updated);
+      saveTeam(updated);
+    }
+  };
+
+  const handleStartGame = () => {
     if (!gameName.trim()) return;
     
     const slots = getFormationSlots();
@@ -202,127 +172,38 @@ export default function SoccerTimeTracker() {
     
     if (!allSlotsFilled) return;
     
-    const times = {};
+    const times: Record<string, number> = {};
     const activePlayers = Object.values(formationAssignments).filter(Boolean);
     
-    currentTeam.players.forEach(p => {
+    currentTeam?.players.forEach(p => {
       times[p.id] = 0;
     });
     
-    setPlayerTimes(times);
-    setActivePlayerIds(activePlayers);
-    setGameTime(0);
-    setGameState('playing');
+    startGame(activePlayers, times);
     setView('game-live');
   };
 
-  const togglePlayPause = () => {
-    if (gameState === 'playing') {
-      setGameState('paused');
-    } else if (gameState === 'paused') {
-      setGameState('playing');
-    }
-  };
-
-  const cancelGame = () => {
-    setGameState('stopped');
-    setGameTime(0);
-    setPlayerTimes({});
-    setActivePlayerIds([]);
+  const handleCancelGame = () => {
+    cancelGame();
     setGameName('');
     setView('formation');
   };
 
-  const handleDragStart = (e, playerId, fromSlot = null) => {
-    setDraggedPlayer(playerId);
-    setDraggedFromSlot(fromSlot);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDropOnSlot = (e, slotKey) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!draggedPlayer) return;
-
-    const currentPlayerInSlot = formationAssignments[slotKey];
-    const newAssignments = { ...formationAssignments };
-    
-    if (draggedFromSlot) {
-      delete newAssignments[draggedFromSlot];
-      
-      if (currentPlayerInSlot) {
-        newAssignments[draggedFromSlot] = currentPlayerInSlot;
-      }
-    }
-    
-    newAssignments[slotKey] = draggedPlayer;
-
-    setFormationAssignments(newAssignments);
-
-    if (view === 'game-live') {
-      setActivePlayerIds(prev => {
-        let updated = [...prev];
-        
-        if (currentPlayerInSlot) {
-          updated = updated.filter(id => id !== currentPlayerInSlot);
-        }
-        
-        if (!updated.includes(draggedPlayer)) {
-          updated.push(draggedPlayer);
-        }
-        
-        return updated;
-      });
-    }
-
-    setDraggedPlayer(null);
-    setDraggedFromSlot(null);
-  };
-
-  const handleDropOnBench = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (!draggedPlayer || !draggedFromSlot) {
-      return;
-    }
-
-    const newAssignments = {};
-    Object.keys(formationAssignments).forEach(key => {
-      if (key !== draggedFromSlot) {
-        newAssignments[key] = formationAssignments[key];
-      }
-    });
-    
-    const newActivePlayerIds = activePlayerIds.filter(id => id !== draggedPlayer);
-
-    setFormationAssignments(newAssignments);
-    setActivePlayerIds(newActivePlayerIds);
-    setDraggedPlayer(null);
-    setDraggedFromSlot(null);
-  };
-
   const getFormationSlots = () => {
-    const layout = FORMATION_LAYOUTS[formation];
+    const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
     return Object.keys(layout);
   };
 
-  const getSlotDisplayName = (slotKey) => {
+  const getSlotDisplayName = (slotKey: string) => {
     return slotKey.replace(/2$/, '');
   };
 
-  const getPlayerById = (id) => {
+  const getPlayerById = (id: string) => {
     if (!id) return null;
     return currentTeam?.players.find(p => p.id === id) || null;
   };
 
-  const getPlayerDisplayName = (player) => {
+  const getPlayerDisplayName = (player: Player) => {
     const firstInitial = player.firstName.charAt(0).toUpperCase();
     return `${firstInitial}. ${player.lastName}`;
   };
@@ -333,9 +214,11 @@ export default function SoccerTimeTracker() {
   };
 
   const autoAssignPlayers = () => {
+    if (!currentTeam) return;
+
     const slots = getFormationSlots();
-    const newAssignments = {};
-    const usedPlayerIds = new Set();
+    const newAssignments: Record<string, string> = {};
+    const usedPlayerIds = new Set<string>();
     
     slots.forEach(slot => {
       const slotPosition = getSlotDisplayName(slot);
@@ -388,6 +271,7 @@ export default function SoccerTimeTracker() {
                 <div className="flex-1 cursor-pointer" onClick={() => {
                   setCurrentTeam(team);
                   setView('team-detail');
+                  cancelEditing();
                 }}>
                   <h3 className="font-semibold">{team.name}</h3>
                   <p className="text-sm text-gray-600">{team.players.length} players</p>
@@ -408,8 +292,8 @@ export default function SoccerTimeTracker() {
 
   const renderTeamDetail = () => (
     <div className="p-6 max-w-4xl mx-auto">
-      <button onClick={() => setView('home')} className="mb-4 text-blue-600 hover:underline">
-        ← Back to Teams
+      <button onClick={() => { setView('home'); cancelEditing(); }} className="mb-4 text-blue-600 hover:underline">
+        &larr; Back to Teams
       </button>
       
       <h1 className="text-3xl font-bold mb-6">{currentTeam.name}</h1>
@@ -451,40 +335,47 @@ export default function SoccerTimeTracker() {
             ))}
           </select>
           <button 
-            onClick={handleAddPlayer}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            onClick={editingPlayerId ? handleUpdatePlayer : handleAddPlayer}
+            className={`px-4 py-2 ${editingPlayerId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'} text-white rounded`}
           >
-            <Plus size={18} className="inline mr-1" /> Add
+            {editingPlayerId ? <Save size={18} className="inline mr-1" /> : <Plus size={18} className="inline mr-1" />} 
+            {editingPlayerId ? 'Update' : 'Add'}
           </button>
+          {editingPlayerId && (
+            <button 
+              onClick={cancelEditing}
+              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Cancel
+            </button>
+          )}
         </div>
       </div>
 
       <div className="mb-6">
-        <h2 className="text-xl font-semibold mb-3">Players ({currentTeam.players.length})</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xl font-semibold">Players ({currentTeam.players.length})</h2>
+          {currentTeam.players.length > 0 && (
+            <button
+              onClick={handleClearPlayers}
+              className="px-3 py-1 text-red-600 border border-red-600 rounded hover:bg-red-50 text-sm"
+            >
+              Clear All Players
+            </button>
+          )}
+        </div>
         {currentTeam.players.length === 0 ? (
           <p className="text-gray-500">No players yet. Add some above!</p>
         ) : (
           <div className="space-y-2">
             {currentTeam.players.map(player => (
-              <div key={player.id} className="flex items-center justify-between p-3 border rounded">
-                <div>
-                  <span className="font-semibold">#{player.number}</span>
-                  <span className="ml-3">{player.firstName} {player.lastName}</span>
-                  <span className="ml-3 text-sm bg-gray-200 px-2 py-1 rounded">{player.position}</span>
-                </div>
-                <button
-                  onClick={() => removePlayer(player.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
+              <PlayerRow key={player.id} player={player} onRemove={removePlayer} onEdit={startEditing} />
             ))}
           </div>
         )}
       </div>
 
-      {currentTeam.players.length > 0 && (
+      {currentTeam && currentTeam.players.length > 0 && (
         <button
           onClick={() => setView('formation')}
           className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
@@ -497,14 +388,14 @@ export default function SoccerTimeTracker() {
 
   const renderFormation = () => {
     const slots = getFormationSlots();
-    const layout = FORMATION_LAYOUTS[formation];
+    const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
     const assignedPlayerIds = Object.values(formationAssignments);
-    const unassignedPlayers = currentTeam.players.filter(p => !assignedPlayerIds.includes(p.id));
+    const unassignedPlayers = currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id)) || [];
 
     return (
       <div className="p-6 max-w-6xl mx-auto">
         <button onClick={() => setView('team-detail')} className="mb-4 text-blue-600 hover:underline">
-          ← Back to Team
+          &larr; Back to Team
         </button>
         
         <h1 className="text-2xl font-bold mb-4">Formation Setup - Drag & Drop Players</h1>
@@ -608,7 +499,7 @@ export default function SoccerTimeTracker() {
           />
           
           <button
-            onClick={startGame}
+            onClick={handleStartGame}
             disabled={!gameName.trim() || !getFormationSlots().every(slot => formationAssignments[slot])}
             className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
@@ -625,7 +516,7 @@ export default function SoccerTimeTracker() {
   };
 
   const renderGameLive = () => {
-    const layout = FORMATION_LAYOUTS[formation];
+    const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
     const slots = getFormationSlots();
     const substitutes = getSubstitutes();
 
@@ -634,7 +525,7 @@ export default function SoccerTimeTracker() {
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold">{gameName}</h1>
           <div className="flex items-center gap-4">
-            <div className="text-2xl font-bold flex items-center gap-2">
+            <div className="text-2xl font-bold flex items-center gap-2" data-testid="game-timer">
               <Clock size={24} />
               {formatTime(gameTime)}
               {gameTime >= 2400 && gameTime < 4800 && <span className="text-sm">(2nd Half)</span>}
@@ -643,13 +534,15 @@ export default function SoccerTimeTracker() {
               {gameState !== 'finished' && (
                 <button
                   onClick={togglePlayPause}
+                  aria-label="Toggle Timer"
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                 >
                   {gameState === 'playing' ? <Pause size={18} /> : <Play size={18} />}
                 </button>
               )}
               <button
-                onClick={cancelGame}
+                onClick={handleCancelGame}
+                aria-label="End Game"
                 className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
               >
                 <Square size={18} />

@@ -1,377 +1,263 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Users, Play, Pause, Square, Clock, Plus, Trash2 } from 'lucide-react';
-import './index.css';
+import React from 'react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
+import App from './App';
 
-const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'AM', 'LW', 'RW', 'CF'];
-const FORMATIONS = ['1-4-4-2', '1-4-3-3'];
-
-interface Player {
-  id: string;
-  firstName: string;
-  lastName: string;
-  number: string;
-  position: string;
-}
-
-interface Team {
-  id: string;
-  name: string;
-  players: Player[];
-}
-
-interface Position {
-  x: number;
-  y: number;
-}
-
-type FormationLayout = Record<string, Position>;
-
-const FORMATION_LAYOUTS: Record<string, FormationLayout> = {
-  '1-4-4-2': {
-    GK: { x: 50, y: 90 },
-    RB: { x: 80, y: 70 },
-    CB: { x: 65, y: 75 },
-    CB2: { x: 35, y: 75 },
-    LB: { x: 20, y: 70 },
-    RM: { x: 80, y: 45 },
-    CM: { x: 65, y: 50 },
-    CM2: { x: 35, y: 50 },
-    LM: { x: 20, y: 45 },
-    CF: { x: 65, y: 20 },
-    CF2: { x: 35, y: 20 }
-  },
-  '1-4-3-3': {
-    GK: { x: 50, y: 90 },
-    RB: { x: 75, y: 70 },
-    CB: { x: 60, y: 75 },
-    CB2: { x: 40, y: 75 },
-    LB: { x: 25, y: 70 },
-    DM: { x: 50, y: 55 },
-    CM: { x: 65, y: 45 },
-    CM2: { x: 35, y: 45 },
-    RW: { x: 75, y: 20 },
-    CF: { x: 50, y: 15 },
-    LW: { x: 25, y: 20 }
-  }
-};
-
-function App() {
-  const [view, setView] = useState<'home' | 'team-detail' | 'formation' | 'game-live'>('home');
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
-  const [formation, setFormation] = useState('1-4-4-2');
-  const [formationAssignments, setFormationAssignments] = useState<Record<string, string>>({});
-  const [gameName, setGameName] = useState('');
-  const [gameState, setGameState] = useState<'stopped' | 'playing' | 'paused' | 'finished'>('stopped');
-  const [gameTime, setGameTime] = useState(0);
-  const [playerTimes, setPlayerTimes] = useState<Record<string, number>>({});
-  const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
-  const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
-  const [draggedFromSlot, setDraggedFromSlot] = useState<string | null>(null);
-  
-  const [teamNameInput, setTeamNameInput] = useState('');
-  const [playerFirstName, setPlayerFirstName] = useState('');
-  const [playerLastName, setPlayerLastName] = useState('');
-  const [playerNumber, setPlayerNumber] = useState('');
-  const [playerPosition, setPlayerPosition] = useState('');
-  
-  const gameIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const activePlayerIdsRef = useRef<string[]>([]);
-  
-  useEffect(() => {
-    activePlayerIdsRef.current = activePlayerIds;
-  }, [activePlayerIds]);
-
-  useEffect(() => {
-    loadTeams();
-  }, []);
-
-  const loadTeams = () => {
-    try {
-      const stored = localStorage.getItem('teams');
-      if (stored) {
-        setTeams(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.log('No teams found');
+// Mock localStorage since the App relies on it for persistence
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => {
+      store[key] = value.toString();
+    },
+    clear: () => {
+      store = {};
+    },
+    removeItem: (key: string) => {
+      delete store[key];
     }
   };
+})();
 
-  const saveTeam = (team: Team) => {
-    try {
-      const existingTeams = teams.filter(t => t.id !== team.id);
-      const updatedTeams = [...existingTeams, team];
-      localStorage.setItem('teams', JSON.stringify(updatedTeams));
-      setTeams(updatedTeams);
-    } catch (error) {
-      console.error('Error saving team:', error);
-    }
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock
+});
+
+describe('SoccerTimeTracker App UI', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  const createTeamAndNavigate = (teamName: string) => {
+    const input = screen.getByPlaceholderText(/Team name/i);
+    const createButton = screen.getByRole('button', { name: /Create/i });
+
+    fireEvent.change(input, { target: { value: teamName } });
+    fireEvent.click(createButton);
   };
 
-  const deleteTeam = (teamId: string) => {
-    try {
-      const updatedTeams = teams.filter(t => t.id !== teamId);
-      localStorage.setItem('teams', JSON.stringify(updatedTeams));
-      setTeams(updatedTeams);
-    } catch (error) {
-      console.error('Error deleting team:', error);
-    }
+  const addPlayer = (firstName: string, lastName: string, number: string, position: string) => {
+    fireEvent.change(screen.getByPlaceholderText(/First name/i), { target: { value: firstName } });
+    fireEvent.change(screen.getByPlaceholderText(/Last name/i), { target: { value: lastName } });
+    fireEvent.change(screen.getByPlaceholderText(/Number/i), { target: { value: number } });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: position } });
+    fireEvent.click(screen.getByRole('button', { name: /Add/i }));
   };
 
-  useEffect(() => {
-    if (gameState === 'playing') {
-      gameIntervalRef.current = setInterval(() => {
-        setGameTime(prev => {
-          const newTime = prev + 1;
-          
-          if (newTime === 40 * 60) {
-            setGameState('paused');
-            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-          }
-          
-          if (newTime === 80 * 60) {
-            setGameState('finished');
-            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-          }
-          
-          return newTime;
-        });
+  test('renders the home screen correctly', () => {
+    render(<App />);
+    expect(screen.getByText(/Soccer Time Tracker/i)).toBeInTheDocument();
+    expect(screen.getByText(/Create New Team/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Team name/i)).toBeInTheDocument();
+  });
 
-        setPlayerTimes(prev => {
-          const updated = { ...prev };
-          activePlayerIdsRef.current.forEach(id => {
-            updated[id] = (updated[id] || 0) + 1;
-          });
-          return updated;
-        });
-      }, 1000);
-    } else {
-      if (gameIntervalRef.current) {
-        clearInterval(gameIntervalRef.current);
-      }
-    }
+  test('allows creating a team and navigating to details', () => {
+    render(<App />);
+    createTeamAndNavigate('Tigers FC');
 
-    return () => {
-      if (gameIntervalRef.current) {
-        clearInterval(gameIntervalRef.current);
-      }
+    // Verify we are on the detail page
+    expect(screen.getByText('Tigers FC')).toBeInTheDocument();
+    expect(screen.getByText(/Add Player/i)).toBeInTheDocument();
+  });
+
+  test('allows adding a player to a team', () => {
+    render(<App />);
+    createTeamAndNavigate('Lions FC');
+
+    // Add a player
+    addPlayer('Lionel', 'Messi', '10', 'CF');
+
+    // Verify player is added
+    expect(screen.getByText('Lionel Messi')).toBeInTheDocument();
+    expect(screen.getByText('#10')).toBeInTheDocument();
+    expect(screen.getByText('CF', { selector: 'span' })).toBeInTheDocument();
+  });
+
+  test('allows deleting a player from a team', () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => true);
+    render(<App />);
+    createTeamAndNavigate('Bears FC');
+
+    // Add player
+    addPlayer('John', 'Doe', '99', 'GK');
+
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+
+    // Find the delete button in the player row and click it
+    const playerRow = screen.getByText('John Doe').closest('[data-testid="player-row"]') as HTMLElement;
+    const deleteButton = within(playerRow).getByRole('button', { name: /remove player/i });
+    fireEvent.click(deleteButton);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(screen.queryByText('John Doe')).not.toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
+
+  test('allows clearing all players from a team', () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => true);
+    render(<App />);
+    createTeamAndNavigate('Panthers FC');
+
+    // Add player 1
+    addPlayer('Player', 'One', '1', 'GK');
+
+    // Add player 2
+    addPlayer('Player', 'Two', '2', 'CB');
+
+    expect(screen.getByText('Player One')).toBeInTheDocument();
+    expect(screen.getByText('Player Two')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Clear All Players'));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(screen.queryByText('Player One')).not.toBeInTheDocument();
+    expect(screen.queryByText('Player Two')).not.toBeInTheDocument();
+    
+    confirmSpy.mockRestore();
+  });
+
+  test('allows editing an existing player', () => {
+    render(<App />);
+    createTeamAndNavigate('Edit FC');
+
+    // Add initial player
+    addPlayer('Original', 'Name', '10', 'CF');
+    expect(screen.getByText('Original Name')).toBeInTheDocument();
+
+    // Find the edit button and click it
+    const playerRow = screen.getByText('Original Name').closest('[data-testid="player-row"]') as HTMLElement;
+    const editButton = within(playerRow).getByRole('button', { name: /edit player/i });
+    fireEvent.click(editButton);
+
+    // Update details
+    fireEvent.change(screen.getByPlaceholderText(/First name/i), { target: { value: 'Updated' } });
+    fireEvent.change(screen.getByPlaceholderText(/Last name/i), { target: { value: 'Player' } });
+    fireEvent.change(screen.getByPlaceholderText(/Number/i), { target: { value: '99' } });
+    
+    // Click Update button
+    fireEvent.click(screen.getByRole('button', { name: /Update/i }));
+
+    // Verify updates
+    expect(screen.getByText('Updated Player')).toBeInTheDocument();
+    expect(screen.getByText('#99')).toBeInTheDocument();
+    expect(screen.queryByText('Original Name')).not.toBeInTheDocument();
+  });
+
+  test('starts and cancels the game correctly', async () => {
+    jest.useFakeTimers();
+    
+    // Pre-populate a team with enough players for 1-4-3-3 formation
+    const team = {
+      id: 't1',
+      name: 'Timer FC',
+      players: [
+        { id: 'p1', firstName: 'P', lastName: '1', number: '1', position: 'GK' },
+        { id: 'p2', firstName: 'P', lastName: '2', number: '2', position: 'RB' },
+        { id: 'p3', firstName: 'P', lastName: '3', number: '3', position: 'CB' },
+        { id: 'p4', firstName: 'P', lastName: '4', number: '4', position: 'CB' },
+        { id: 'p5', firstName: 'P', lastName: '5', number: '5', position: 'LB' },
+        { id: 'p6', firstName: 'P', lastName: '6', number: '6', position: 'DM' },
+        { id: 'p7', firstName: 'P', lastName: '7', number: '7', position: 'CM' },
+        { id: 'p8', firstName: 'P', lastName: '8', number: '8', position: 'CM' },
+        { id: 'p9', firstName: 'P', lastName: '9', number: '9', position: 'RW' },
+        { id: 'p10', firstName: 'P', lastName: '10', number: '10', position: 'CF' },
+        { id: 'p11', firstName: 'P', lastName: '11', number: '11', position: 'LW' },
+      ]
     };
-  }, [gameState]);
+    window.localStorage.setItem('teams', JSON.stringify([team]));
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleCreateTeam = () => {
-    if (teamNameInput.trim()) {
-      const team: Team = {
-        id: Date.now().toString(),
-        name: teamNameInput,
-        players: []
-      };
-      saveTeam(team);
-      setCurrentTeam(team);
-      setTeamNameInput('');
-      setView('team-detail');
-    }
-  };
-
-  const handleAddPlayer = () => {
-    if (playerFirstName && playerLastName && playerNumber && playerPosition && currentTeam) {
-      const player: Player = {
-        id: Date.now().toString(),
-        firstName: playerFirstName,
-        lastName: playerLastName,
-        number: playerNumber,
-        position: playerPosition
-      };
-      const updated = { ...currentTeam, players: [...currentTeam.players, player] };
-      setCurrentTeam(updated);
-      saveTeam(updated);
-      setPlayerFirstName('');
-      setPlayerLastName('');
-      setPlayerNumber('');
-      setPlayerPosition('');
-    }
-  };
-
-  const removePlayer = (playerId: string) => {
-    if (!currentTeam) return;
-    const updated = { ...currentTeam, players: currentTeam.players.filter(p => p.id !== playerId) };
-    setCurrentTeam(updated);
-    saveTeam(updated);
-  };
-
-  const startGame = () => {
-    if (!gameName.trim() || !currentTeam) return;
+    render(<App />);
     
-    const slots = getFormationSlots();
-    const allSlotsFilled = slots.every(slot => formationAssignments[slot]);
+    // Navigate to team and formation
+    fireEvent.click(await screen.findByText('Timer FC'));
+    fireEvent.click(screen.getByText('Set Formation & Start Game'));
     
-    if (!allSlotsFilled) return;
+    // Change formation to 1-4-3-3 to match our players
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '1-4-3-3' } });
     
-    const times: Record<string, number> = {};
-    const activePlayers = Object.values(formationAssignments).filter(Boolean);
+    // Auto assign and start
+    fireEvent.click(screen.getByText('Auto-Assign Players'));
+    fireEvent.change(screen.getByPlaceholderText('Enter game name...'), { target: { value: 'Finals' } });
+    fireEvent.click(screen.getByText('Start Game'));
     
-    currentTeam.players.forEach(p => {
-      times[p.id] = 0;
+    // Verify initial state
+    expect(screen.getByTestId('game-timer')).toHaveTextContent('00:00');
+    
+    // Advance time by 10 seconds
+    act(() => {
+      jest.advanceTimersByTime(10000);
     });
+    expect(screen.getByTestId('game-timer')).toHaveTextContent('00:10');
     
-    setPlayerTimes(times);
-    setActivePlayerIds(activePlayers);
-    setGameTime(0);
-    setGameState('playing');
-    setView('game-live');
-  };
+    // Verify Cancel works
+    const stopButton = screen.getByLabelText('End Game');
+    fireEvent.click(stopButton);
 
-  const togglePlayPause = () => {
-    if (gameState === 'playing') {
-      setGameState('paused');
-    } else if (gameState === 'paused') {
-      setGameState('playing');
-    }
-  };
+    expect(screen.getByText(/Formation Setup/i)).toBeInTheDocument();
+  });
 
-  const cancelGame = () => {
-    setGameState('stopped');
-    setGameTime(0);
-    setPlayerTimes({});
-    setActivePlayerIds([]);
-    setGameName('');
-    setView('formation');
-  };
-
-  const handleDragStart = (e: React.DragEvent, playerId: string, fromSlot: string | null = null) => {
-    setDraggedPlayer(playerId);
-    setDraggedFromSlot(fromSlot);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleDropOnSlot = (e: React.DragEvent, slotKey: string) => {
-    e.preventDefault();
-    e.stopPropagation();
+  test('allows substituting players during a game', async () => {
+    jest.useFakeTimers();
     
-    if (!draggedPlayer) return;
+    const team = {
+      id: 't1',
+      name: 'Sub FC',
+      players: [
+        { id: 'p1', firstName: 'GK', lastName: 'One', number: '1', position: 'GK' },
+        { id: 'p2', firstName: 'RB', lastName: 'Two', number: '2', position: 'RB' },
+        { id: 'p3', firstName: 'CB', lastName: 'Three', number: '3', position: 'CB' },
+        { id: 'p4', firstName: 'CB', lastName: 'Four', number: '4', position: 'CB' },
+        { id: 'p5', firstName: 'LB', lastName: 'Five', number: '5', position: 'LB' },
+        { id: 'p6', firstName: 'RM', lastName: 'Six', number: '6', position: 'RM' },
+        { id: 'p7', firstName: 'CM', lastName: 'Seven', number: '7', position: 'CM' },
+        { id: 'p8', firstName: 'CM', lastName: 'Eight', number: '8', position: 'CM' },
+        { id: 'p9', firstName: 'LM', lastName: 'Nine', number: '9', position: 'LM' },
+        { id: 'p10', firstName: 'CF', lastName: 'Ten', number: '10', position: 'CF' },
+        { id: 'p11', firstName: 'CF', lastName: 'Eleven', number: '11', position: 'CF' },
+        { id: 'p12', firstName: 'Sub', lastName: 'Player', number: '12', position: 'CM' },
+      ]
+    };
+    window.localStorage.setItem('teams', JSON.stringify([team]));
 
-    const currentPlayerInSlot = formationAssignments[slotKey];
-    const newAssignments = { ...formationAssignments };
+    render(<App />);
     
-    if (draggedFromSlot) {
-      delete newAssignments[draggedFromSlot];
-      
-      if (currentPlayerInSlot) {
-        newAssignments[draggedFromSlot] = currentPlayerInSlot;
-      }
-    }
+    // Navigate to game
+    fireEvent.click(await screen.findByText('Sub FC'));
+    fireEvent.click(screen.getByText('Set Formation & Start Game'));
+    fireEvent.click(screen.getByText('Auto-Assign Players'));
+    fireEvent.change(screen.getByPlaceholderText('Enter game name...'), { target: { value: 'Match 1' } });
+    fireEvent.click(screen.getByText('Start Game'));
+
+    // Find elements
+    const starterName = 'G. One';
+    const subName = 'S. Player';
     
-    newAssignments[slotKey] = draggedPlayer;
-
-    setFormationAssignments(newAssignments);
-
-    if (view === 'game-live') {
-      setActivePlayerIds(prev => {
-        let updated = [...prev];
-        
-        if (currentPlayerInSlot) {
-          updated = updated.filter(id => id !== currentPlayerInSlot);
-        }
-        
-        if (!updated.includes(draggedPlayer)) {
-          updated.push(draggedPlayer);
-        }
-        
-        return updated;
-      });
-    }
-
-    setDraggedPlayer(null);
-    setDraggedFromSlot(null);
-  };
-
-  const handleDropOnBench = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    const subElement = screen.getByText(subName).closest('div[draggable="true"]');
+    const starterElement = screen.getByText(starterName).closest('div[draggable="true"]');
+    const targetSlot = starterElement?.parentElement;
     
-    if (!draggedPlayer || !draggedFromSlot) {
-      return;
-    }
+    if (!subElement || !targetSlot) throw new Error('Elements not found');
 
-    const newAssignments: Record<string, string> = {};
-    Object.keys(formationAssignments).forEach(key => {
-      if (key !== draggedFromSlot) {
-        newAssignments[key] = formationAssignments[key];
-      }
-    });
-    
-    const newActivePlayerIds = activePlayerIds.filter(id => id !== draggedPlayer);
+    // Perform drag and drop
+    const mockDataTransfer = {
+      setData: jest.fn(),
+      getData: jest.fn().mockReturnValue('p12'), // ID of the sub player
+      types: ['text/plain'],
+    };
 
-    setFormationAssignments(newAssignments);
-    setActivePlayerIds(newActivePlayerIds);
-    setDraggedPlayer(null);
-    setDraggedFromSlot(null);
-  };
+    fireEvent.dragStart(subElement, { dataTransfer: mockDataTransfer });
+    fireEvent.dragOver(targetSlot, { dataTransfer: mockDataTransfer });
+    fireEvent.drop(targetSlot, { dataTransfer: mockDataTransfer });
 
-  const getFormationSlots = (): string[] => {
-    const layout = FORMATION_LAYOUTS[formation];
-    return Object.keys(layout);
-  };
+    // Verify substitution
+    const substitutesSection = screen.getByText('Substitutes - Drag to pitch').nextElementSibling as HTMLElement;
+    const pitchSection = screen.getByText('Playing XI - Drag to substitute').nextElementSibling as HTMLElement;
 
-  const getSlotDisplayName = (slotKey: string): string => {
-    return slotKey.replace(/2$/, '');
-  };
-
-  const getPlayerById = (id: string): Player | null => {
-    if (!id || !currentTeam) return null;
-    return currentTeam.players.find(p => p.id === id) || null;
-  };
-
-  const getPlayerDisplayName = (player: Player): string => {
-    const firstInitial = player.firstName.charAt(0).toUpperCase();
-    return `${firstInitial}. ${player.lastName}`;
-  };
-
-  const getSubstitutes = (): Player[] => {
-    if (!currentTeam) return [];
-    const assignedPlayerIds = Object.values(formationAssignments).filter(Boolean);
-    return currentTeam.players.filter(p => !assignedPlayerIds.includes(p.id));
-  };
-
-  const autoAssignPlayers = () => {
-    if (!currentTeam) return;
-    const slots = getFormationSlots();
-    const newAssignments: Record<string, string> = {};
-    const usedPlayerIds = new Set<string>();
-    
-    slots.forEach(slot => {
-      const slotPosition = getSlotDisplayName(slot);
-      
-      const matchingPlayer = currentTeam.players.find(
-        player => player.position === slotPosition && !usedPlayerIds.has(player.id)
-      );
-      
-      if (matchingPlayer) {
-        newAssignments[slot] = matchingPlayer.id;
-        usedPlayerIds.add(matchingPlayer.id);
-      }
-    });
-    
-    setFormationAssignments(newAssignments);
-  };
-
-  // I'll provide the render functions in the next message due to length...
-  
-  return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Render functions go here */}
-    </div>
-  );
-}
-
-export default App;
+    expect(within(substitutesSection).getByText(starterName)).toBeInTheDocument();
+    expect(within(pitchSection).getByText(subName)).toBeInTheDocument();
+  });
+});
