@@ -149,6 +149,7 @@ describe('SoccerTimeTracker App UI', () => {
 
   test('starts and cancels the game correctly', async () => {
     jest.useFakeTimers();
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => false); // Deny save to history
     
     // Pre-populate a team with enough players for 1-4-3-3 formation
     const team = {
@@ -198,6 +199,7 @@ describe('SoccerTimeTracker App UI', () => {
     fireEvent.click(stopButton);
 
     expect(screen.getByText(/Formation Setup/i)).toBeInTheDocument();
+    confirmSpy.mockRestore();
   });
 
   test('allows substituting players during a game', async () => {
@@ -259,5 +261,54 @@ describe('SoccerTimeTracker App UI', () => {
 
     expect(within(substitutesSection).getByText(starterName)).toBeInTheDocument();
     expect(within(pitchSection).getByText(subName)).toBeInTheDocument();
+  });
+
+  test('saves finished game to history', async () => {
+    jest.useFakeTimers();
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => true);
+    
+    const team = {
+      id: 't_history',
+      name: 'History FC',
+      players: [
+        { id: 'p1', firstName: 'P', lastName: '1', number: '1', position: 'GK' },
+        { id: 'p2', firstName: 'P', lastName: '2', number: '2', position: 'RB' },
+        { id: 'p3', firstName: 'P', lastName: '3', number: '3', position: 'CB' },
+        { id: 'p4', firstName: 'P', lastName: '4', number: '4', position: 'CB' },
+        { id: 'p5', firstName: 'P', lastName: '5', number: '5', position: 'LB' },
+        { id: 'p6', firstName: 'P', lastName: '6', number: '6', position: 'DM' },
+        { id: 'p7', firstName: 'P', lastName: '7', number: '7', position: 'CM' },
+        { id: 'p8', firstName: 'P', lastName: '8', number: '8', position: 'CM' },
+        { id: 'p9', firstName: 'P', lastName: '9', number: '9', position: 'RW' },
+        { id: 'p10', firstName: 'P', lastName: '10', number: '10', position: 'CF' },
+        { id: 'p11', firstName: 'P', lastName: '11', number: '11', position: 'LW' },
+      ]
+    };
+    window.localStorage.setItem('teams', JSON.stringify([team]));
+
+    render(<App />);
+    
+    fireEvent.click(await screen.findByText('History FC'));
+    fireEvent.click(screen.getByText('Set Formation & Start Game'));
+    
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '1-4-3-3' } });
+    fireEvent.click(screen.getByText('Auto-Assign Players'));
+    fireEvent.change(screen.getByPlaceholderText('Enter game name...'), { target: { value: 'Championship Final' } });
+    fireEvent.click(screen.getByText('Start Game'));
+    
+    act(() => {
+      jest.advanceTimersByTime(60000);
+    });
+    
+    const stopButton = screen.getByLabelText('End Game');
+    fireEvent.click(stopButton);
+    
+    expect(confirmSpy).toHaveBeenCalledWith('Game ended. Save to history?');
+    expect(screen.getByText('Game History')).toBeInTheDocument();
+    expect(screen.getByText('Championship Final')).toBeInTheDocument();
+    expect(screen.getByText(/History FC/)).toBeInTheDocument();
+    expect(screen.getAllByText('01:00').length).toBeGreaterThan(0);
+    
+    confirmSpy.mockRestore();
   });
 });
