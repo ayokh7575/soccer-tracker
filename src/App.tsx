@@ -56,6 +56,7 @@ export default function SoccerTimeTracker() {
   const [playerGoals, setPlayerGoals] = useState<Record<string, number>>({});
   const [goalHistory, setGoalHistory] = useState<string[]>([]);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'totalTime', direction: 'desc' });
+  const version = process.env.REACT_APP_VERSION || '0.1.0';
 
   // Custom Hooks
   const { teams, saveTeam, deleteTeam } = useTeamStorage();
@@ -537,7 +538,7 @@ export default function SoccerTimeTracker() {
 
   const renderHome = () => (
     <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6 text-center">Soccer Time Tracker</h1>
+      <h1 className="text-3xl font-bold mb-6 text-center">Soccer Time Tracker (v{version})</h1>
       
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-3">Create New Team</h2>

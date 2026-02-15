@@ -53,6 +53,7 @@ describe('SoccerTimeTracker App UI', () => {
     expect(screen.getByText(/Soccer Time Tracker/i)).toBeInTheDocument();
     expect(screen.getByText(/Create New Team/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Team name/i)).toBeInTheDocument();
+    expect(screen.getByText(/v0.1.0/i)).toBeInTheDocument();
   });
 
   test('allows creating a team and navigating to details', () => {
