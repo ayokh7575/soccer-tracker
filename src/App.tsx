@@ -1054,7 +1054,7 @@ export default function SoccerTimeTracker() {
                   key={player.id}
                   draggable={gameState !== 'finished'}
                   onDragStart={(e) => handleDragStart(e, player.id, null)}
-                  className="bg-gray-100 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-move hover:shadow-xl"
+                  className="relative bg-gray-100 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-move hover:shadow-xl"
                 >
                   <div className="font-bold text-lg">#{player.number}</div>
                   <div className="text-xs text-center px-1">{getPlayerDisplayName(player)}</div>
@@ -1062,6 +1062,9 @@ export default function SoccerTimeTracker() {
                   <div className="text-xs font-semibold text-gray-500">
                     {formatTime(playerTimes[player.id] || 0)}
                   </div>
+                  {(playerGoals[player.id] || 0) > 0 && (
+                    <div className="absolute -top-2 -right-2 bg-yellow-400 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">⚽ {playerGoals[player.id]}</div>
+                  )}
                 </div>
               ))}
               {substitutes.length === 0 && (

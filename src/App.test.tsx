@@ -621,4 +621,67 @@ describe('SoccerTimeTracker App UI', () => {
     expect(rowsDesc[1]).toHaveTextContent('B. Player'); // #2
     expect(rowsDesc[2]).toHaveTextContent('A. Player'); // #1
   });
+
+  test('shows goal icon for substitute players', async () => {
+    jest.useFakeTimers();
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => true);
+
+    const team = {
+      id: 't_sub_goals',
+      name: 'Sub Goals FC',
+      players: [
+        { id: 'p1', firstName: 'Scorer', lastName: 'One', number: '9', position: 'CF' },
+        { id: 'p2', firstName: 'P', lastName: '2', number: '1', position: 'GK' },
+        { id: 'p3', firstName: 'P', lastName: '3', number: '2', position: 'RB' },
+        { id: 'p4', firstName: 'P', lastName: '4', number: '3', position: 'CB' },
+        { id: 'p5', firstName: 'P', lastName: '5', number: '4', position: 'CB' },
+        { id: 'p6', firstName: 'P', lastName: '6', number: '5', position: 'LB' },
+        { id: 'p7', firstName: 'P', lastName: '7', number: '6', position: 'RM' },
+        { id: 'p8', firstName: 'P', lastName: '8', number: '7', position: 'CM' },
+        { id: 'p9', firstName: 'P', lastName: '9', number: '8', position: 'CM' },
+        { id: 'p10', firstName: 'P', lastName: '10', number: '10', position: 'LM' },
+        { id: 'p11', firstName: 'P', lastName: '11', number: '11', position: 'CF' },
+        { id: 'p12', firstName: 'Sub', lastName: 'Player', number: '12', position: 'CF' }
+      ]
+    };
+    window.localStorage.setItem('teams', JSON.stringify([team]));
+
+    render(<App />);
+    
+    // Navigate to game
+    fireEvent.click(await screen.findByText('Sub Goals FC'));
+    fireEvent.click(screen.getByText('Set Formation & Start Game'));
+    fireEvent.click(screen.getByText('Auto-Assign Players'));
+    fireEvent.change(screen.getByPlaceholderText('Enter game name...'), { target: { value: 'Sub Goal Match' } });
+    fireEvent.click(screen.getByText('Start Game'));
+
+    // Score a goal
+    fireEvent.click(screen.getByText('S. One'));
+    expect(confirmSpy).toHaveBeenCalledWith('Goal scored by S. One?');
+    expect(screen.getByText('⚽ 1')).toBeInTheDocument();
+
+    // Find elements for drag and drop
+    const scorerCard = screen.getByText('S. One').closest('div[draggable="true"]');
+    if (!scorerCard) throw new Error('Scorer card not found');
+
+    const benchArea = screen.getByText('Substitutes - Drag to pitch').nextElementSibling;
+    if (!benchArea) throw new Error('Bench area not found');
+
+    // Perform drag and drop to bench
+    const mockDataTransfer = {
+      setData: jest.fn(),
+      getData: jest.fn(),
+      types: [],
+      effectAllowed: 'move',
+      dropEffect: 'move'
+    };
+
+    fireEvent.dragStart(scorerCard, { dataTransfer: mockDataTransfer });
+    fireEvent.drop(benchArea, { dataTransfer: mockDataTransfer });
+
+    // Verify goal icon is visible in the bench area for this player
+    expect(within(benchArea as HTMLElement).getByText('⚽ 1')).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
 });
