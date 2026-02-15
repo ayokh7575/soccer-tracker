@@ -6,6 +6,7 @@ export interface PlayerStat {
   number: string;
   time: number;
   goals: number;
+  redCards: number;
 }
 
 export interface GameRecord {

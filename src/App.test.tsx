@@ -53,7 +53,7 @@ describe('SoccerTimeTracker App UI', () => {
     expect(screen.getByText(/Soccer Time Tracker/i)).toBeInTheDocument();
     expect(screen.getByText(/Create New Team/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Team name/i)).toBeInTheDocument();
-    expect(screen.getByText(/v0.1.0/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/v0.1.0/i).length).toBeGreaterThan(0);
   });
 
   test('allows creating a team and navigating to details', () => {
@@ -519,12 +519,13 @@ describe('SoccerTimeTracker App UI', () => {
 
     // Score a goal
     fireEvent.click(screen.getByText('S. One'));
+    fireEvent.click(screen.getByText('⚽ Goal'));
 
     expect(confirmSpy).toHaveBeenCalledWith('Goal scored by S. One?');
     expect(screen.getByText('⚽ 1')).toBeInTheDocument();
 
     // Undo goal
-    fireEvent.click(screen.getByLabelText('Undo Last Goal'));
+    fireEvent.click(screen.getByLabelText('Undo Last Action'));
     expect(confirmSpy).toHaveBeenCalledWith('Undo last goal by S. One?');
     expect(screen.queryByText('⚽ 1')).not.toBeInTheDocument();
 
@@ -657,6 +658,7 @@ describe('SoccerTimeTracker App UI', () => {
 
     // Score a goal
     fireEvent.click(screen.getByText('S. One'));
+    fireEvent.click(screen.getByText('⚽ Goal'));
     expect(confirmSpy).toHaveBeenCalledWith('Goal scored by S. One?');
     expect(screen.getByText('⚽ 1')).toBeInTheDocument();
 
@@ -683,5 +685,173 @@ describe('SoccerTimeTracker App UI', () => {
     expect(within(benchArea as HTMLElement).getByText('⚽ 1')).toBeInTheDocument();
 
     confirmSpy.mockRestore();
+  });
+
+  test('allows giving a red card to a player', async () => {
+    jest.useFakeTimers();
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => true);
+
+    const team = {
+      id: 't_red_card',
+      name: 'Red Card FC',
+      players: [
+        { id: 'p1', firstName: 'Bad', lastName: 'Boy', number: '99', position: 'CF' },
+        { id: 'p2', firstName: 'P', lastName: '2', number: '1', position: 'GK' },
+        { id: 'p3', firstName: 'P', lastName: '3', number: '2', position: 'RB' },
+        { id: 'p4', firstName: 'P', lastName: '4', number: '3', position: 'CB' },
+        { id: 'p5', firstName: 'P', lastName: '5', number: '4', position: 'CB' },
+        { id: 'p6', firstName: 'P', lastName: '6', number: '5', position: 'LB' },
+        { id: 'p7', firstName: 'P', lastName: '7', number: '6', position: 'RM' },
+        { id: 'p8', firstName: 'P', lastName: '8', number: '7', position: 'CM' },
+        { id: 'p9', firstName: 'P', lastName: '9', number: '8', position: 'CM' },
+        { id: 'p10', firstName: 'P', lastName: '10', number: '10', position: 'LM' },
+        { id: 'p11', firstName: 'P', lastName: '11', number: '11', position: 'CF' },
+      ]
+    };
+    window.localStorage.setItem('teams', JSON.stringify([team]));
+
+    render(<App />);
+    
+    // Start game
+    fireEvent.click(await screen.findByText('Red Card FC'));
+    fireEvent.click(screen.getByText('Set Formation & Start Game'));
+    fireEvent.click(screen.getByText('Auto-Assign Players'));
+    fireEvent.change(screen.getByPlaceholderText('Enter game name...'), { target: { value: 'Red Card Match' } });
+    fireEvent.click(screen.getByText('Start Game'));
+
+    // Click player to give red card
+    fireEvent.click(screen.getByText('B. Boy'));
+    fireEvent.click(screen.getByText('🟥 Red Card'));
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('Give Red Card to B. Boy?'));
+
+    // Verify player moved to bench (substitutes area)
+    const benchArea = screen.getByText('Substitutes - Drag to pitch').nextElementSibling;
+    expect(within(benchArea as HTMLElement).getByText('B. Boy')).toBeInTheDocument();
+    
+    // Verify red card icon on bench
+    expect(within(benchArea as HTMLElement).getByText('🟥')).toBeInTheDocument();
+
+    // Verify player is no longer on pitch
+    const pitchArea = screen.getByText('Playing XI - Drag to substitute').nextElementSibling;
+    expect(within(pitchArea as HTMLElement).queryByText('B. Boy')).not.toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  test('allows undoing a red card', async () => {
+    jest.useFakeTimers();
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => true);
+
+    const team = {
+      id: 't_undo_red',
+      name: 'Undo Red FC',
+      players: [
+        { id: 'p1', firstName: 'Red', lastName: 'Card', number: '99', position: 'CF' },
+        { id: 'p2', firstName: 'P', lastName: '2', number: '1', position: 'GK' },
+        { id: 'p3', firstName: 'P', lastName: '3', number: '2', position: 'RB' },
+        { id: 'p4', firstName: 'P', lastName: '4', number: '3', position: 'CB' },
+        { id: 'p5', firstName: 'P', lastName: '5', number: '4', position: 'CB' },
+        { id: 'p6', firstName: 'P', lastName: '6', number: '5', position: 'LB' },
+        { id: 'p7', firstName: 'P', lastName: '7', number: '6', position: 'RM' },
+        { id: 'p8', firstName: 'P', lastName: '8', number: '7', position: 'CM' },
+        { id: 'p9', firstName: 'P', lastName: '9', number: '8', position: 'CM' },
+        { id: 'p10', firstName: 'P', lastName: '10', number: '10', position: 'LM' },
+        { id: 'p11', firstName: 'P', lastName: '11', number: '11', position: 'CF' },
+      ]
+    };
+    window.localStorage.setItem('teams', JSON.stringify([team]));
+
+    render(<App />);
+    
+    fireEvent.click(await screen.findByText('Undo Red FC'));
+    fireEvent.click(screen.getByText('Set Formation & Start Game'));
+    fireEvent.click(screen.getByText('Auto-Assign Players'));
+    fireEvent.change(screen.getByPlaceholderText('Enter game name...'), { target: { value: 'Undo Red Match' } });
+    fireEvent.click(screen.getByText('Start Game'));
+
+    fireEvent.click(screen.getByText('R. Card'));
+    fireEvent.click(screen.getByText('🟥 Red Card'));
+    
+    // Undo Red Card
+    fireEvent.click(screen.getByLabelText('Undo Last Action'));
+    expect(confirmSpy).toHaveBeenCalledWith('Undo red card for R. Card?');
+    
+    // Verify player is back on pitch (not in bench)
+    const pitchArea = screen.getByText('Playing XI - Drag to substitute').nextElementSibling;
+    expect(within(pitchArea as HTMLElement).getByText('R. Card')).toBeInTheDocument();
+  });
+
+  test('prevents adding substitute if team is down due to red card', async () => {
+    jest.useFakeTimers();
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => true);
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+
+    const team = {
+      id: 't_red_sub',
+      name: 'Red Sub FC',
+      players: [
+        { id: 'p1', firstName: 'P', lastName: '1', number: '1', position: 'GK' },
+        { id: 'p2', firstName: 'P', lastName: '2', number: '2', position: 'RB' },
+        { id: 'p3', firstName: 'P', lastName: '3', number: '3', position: 'CB' },
+        { id: 'p4', firstName: 'P', lastName: '4', number: '4', position: 'CB' },
+        { id: 'p5', firstName: 'P', lastName: '5', number: '5', position: 'LB' },
+        { id: 'p6', firstName: 'P', lastName: '6', number: '6', position: 'DM' },
+        { id: 'p7', firstName: 'P', lastName: '7', number: '7', position: 'CM' },
+        { id: 'p8', firstName: 'P', lastName: '8', number: '8', position: 'CM' },
+        { id: 'p9', firstName: 'P', lastName: '9', number: '9', position: 'RW' },
+        { id: 'p10', firstName: 'P', lastName: '10', number: '10', position: 'CF' },
+        { id: 'p11', firstName: 'P', lastName: '11', number: '11', position: 'LW' },
+        { id: 'p12', firstName: 'Sub', lastName: 'Player', number: '12', position: 'CM' }
+      ]
+    };
+    window.localStorage.setItem('teams', JSON.stringify([team]));
+
+    render(<App />);
+    
+    // Start game
+    fireEvent.click(await screen.findByText('Red Sub FC'));
+    fireEvent.click(screen.getByText('Set Formation & Start Game'));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '1-4-3-3' } });
+    fireEvent.click(screen.getByText('Auto-Assign Players'));
+    fireEvent.change(screen.getByPlaceholderText('Enter game name...'), { target: { value: 'Red Sub Match' } });
+    fireEvent.click(screen.getByText('Start Game'));
+
+    // Give Red Card to P. 11 (LW)
+    fireEvent.click(screen.getByText('P. 11'));
+    fireEvent.click(screen.getByText('🟥 Red Card'));
+    
+    // Verify player removed and slot shows position name
+    const pitchArea = screen.getByText('Playing XI - Drag to substitute').nextElementSibling as HTMLElement;
+    expect(within(pitchArea).queryByText('P. 11')).not.toBeInTheDocument();
+    
+    // Find the empty slot (LW)
+    const emptySlotText = within(pitchArea).getByText('LW');
+    const emptySlot = emptySlotText.closest('[data-testid="player-slot"]');
+    
+    // Find substitute
+    const subPlayer = screen.getByText('S. Player').closest('div[draggable="true"]');
+    
+    if (!subPlayer || !emptySlot) throw new Error('Elements not found');
+
+    const mockDataTransfer = {
+      setData: jest.fn(),
+      getData: jest.fn(),
+      types: [],
+      effectAllowed: 'move',
+      dropEffect: 'move'
+    };
+
+    fireEvent.dragStart(subPlayer, { dataTransfer: mockDataTransfer });
+    fireEvent.drop(emptySlot, { dataTransfer: mockDataTransfer });
+
+    // Verify alert was called
+    expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('Cannot add player'));
+    
+    // Verify sub is still on bench
+    const benchArea = screen.getByText('Substitutes - Drag to pitch').nextElementSibling as HTMLElement;
+    expect(within(benchArea).getByText('S. Player')).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+    alertSpy.mockRestore();
   });
 });

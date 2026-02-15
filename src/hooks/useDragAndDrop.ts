@@ -6,6 +6,7 @@ interface UseDragAndDropProps {
   activePlayerIds: string[];
   setActivePlayerIds: React.Dispatch<React.SetStateAction<string[]>>;
   view: string;
+  maxPlayersOnField?: number;
 }
 
 export const useDragAndDrop = ({
@@ -13,7 +14,8 @@ export const useDragAndDrop = ({
   setFormationAssignments,
   activePlayerIds,
   setActivePlayerIds,
-  view
+  view,
+  maxPlayersOnField
 }: UseDragAndDropProps) => {
   const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null);
   const [draggedFromSlot, setDraggedFromSlot] = useState<string | null>(null);
@@ -40,6 +42,18 @@ export const useDragAndDrop = ({
     if (!draggedPlayer) return;
 
     const currentPlayerInSlot = formationAssignments[slotKey];
+    
+    // Check if adding from bench to empty slot would exceed limit
+    if (!draggedFromSlot && !currentPlayerInSlot && maxPlayersOnField !== undefined) {
+      const currentCount = Object.keys(formationAssignments).length;
+      if (currentCount >= maxPlayersOnField) {
+        window.alert(`Cannot add player. Team is down to ${maxPlayersOnField} players due to red card(s).`);
+        setDraggedPlayer(null);
+        setDraggedFromSlot(null);
+        return;
+      }
+    }
+
     const newAssignments = { ...formationAssignments };
     
     if (draggedFromSlot) {
