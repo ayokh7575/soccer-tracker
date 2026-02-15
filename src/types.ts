@@ -4,6 +4,7 @@ export interface Player {
   lastName: string;
   number: string;
   position: string;
+  isUnavailable?: boolean;
 }
 
 export interface Team {

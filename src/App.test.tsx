@@ -147,6 +147,33 @@ describe('SoccerTimeTracker App UI', () => {
     expect(screen.queryByText('Original Name')).not.toBeInTheDocument();
   });
 
+  test('allows toggling player availability', () => {
+    render(<App />);
+    createTeamAndNavigate('Availability FC');
+
+    // Add a player
+    addPlayer('Test', 'Player', '1', 'GK');
+
+    // Verify initial state (Available)
+    expect(screen.queryByText('(Unavailable)')).not.toBeInTheDocument();
+    const toggleButton = screen.getByRole('button', { name: /Mark as unavailable/i });
+    expect(toggleButton).toBeInTheDocument();
+
+    // Toggle to Unavailable
+    fireEvent.click(toggleButton);
+
+    // Verify unavailable state
+    expect(screen.getByText('(Unavailable)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mark as available/i })).toBeInTheDocument();
+
+    // Toggle back to Available
+    fireEvent.click(screen.getByRole('button', { name: /Mark as available/i }));
+
+    // Verify available state again
+    expect(screen.queryByText('(Unavailable)')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mark as unavailable/i })).toBeInTheDocument();
+  });
+
   test('starts and cancels the game correctly', async () => {
     jest.useFakeTimers();
     const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => false); // Deny save to history

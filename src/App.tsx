@@ -146,7 +146,8 @@ export default function SoccerTimeTracker() {
               firstName,
               lastName,
               number,
-              position
+              position,
+              isUnavailable: false
             });
           }
         }
@@ -178,7 +179,8 @@ export default function SoccerTimeTracker() {
         firstName: playerFirstName,
         lastName: playerLastName,
         number: playerNumber,
-        position: playerPosition
+        position: playerPosition,
+        isUnavailable: false
       };
       const updated = { ...currentTeam, players: [...currentTeam.players, player] };
       setCurrentTeam(updated);
@@ -210,6 +212,16 @@ export default function SoccerTimeTracker() {
       saveTeam(updatedTeam);
       cancelEditing();
     }
+  };
+
+  const togglePlayerAvailability = (player: Player) => {
+    if (!currentTeam) return;
+    const updatedPlayers = currentTeam.players.map(p =>
+      p.id === player.id ? { ...p, isUnavailable: !p.isUnavailable } : p
+    );
+    const updatedTeam = { ...currentTeam, players: updatedPlayers };
+    setCurrentTeam(updatedTeam);
+    saveTeam(updatedTeam);
   };
 
   const removePlayer = (playerId: string) => {
@@ -379,7 +391,7 @@ export default function SoccerTimeTracker() {
       const slotPosition = getSlotDisplayName(slot);
       
       const matchingPlayer = currentTeam.players.find(
-        player => player.position === slotPosition && !usedPlayerIds.has(player.id)
+        player => player.position === slotPosition && !usedPlayerIds.has(player.id) && !player.isUnavailable
       );
       
       if (matchingPlayer) {
@@ -689,7 +701,7 @@ export default function SoccerTimeTracker() {
         ) : (
           <div className="space-y-2">
             {currentTeam.players.map(player => (
-              <PlayerRow key={player.id} player={player} onRemove={removePlayer} onEdit={startEditing} />
+              <PlayerRow key={player.id} player={player} onRemove={removePlayer} onEdit={startEditing} onToggleAvailability={togglePlayerAvailability} />
             ))}
           </div>
         )}
@@ -710,7 +722,7 @@ export default function SoccerTimeTracker() {
     const slots = getFormationSlots();
     const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
     const assignedPlayerIds = Object.values(formationAssignments);
-    const unassignedPlayers = currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id)) || [];
+    const unassignedPlayers = currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id) && !p.isUnavailable) || [];
 
     return (
       <div className="p-6 max-w-6xl mx-auto">
