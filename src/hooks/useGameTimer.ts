@@ -1,88 +1,95 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 export const useGameTimer = () => {
-  const [gameState, setGameState] = useState<'stopped' | 'playing' | 'paused' | 'finished'>('stopped');
+  const [gameState, setGameState] = useState<'idle' | 'playing' | 'paused' | 'finished'>('idle');
   const [gameTime, setGameTime] = useState(0);
   const [playerTimes, setPlayerTimes] = useState<Record<string, number>>({});
   const [activePlayerIds, setActivePlayerIds] = useState<string[]>([]);
-  
-  const gameIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const activePlayerIdsRef = useRef<string[]>([]);
 
-  useEffect(() => {
-    activePlayerIdsRef.current = activePlayerIds;
-  }, [activePlayerIds]);
+  // Use a ref to track the last time the timer updated to handle background throttling
+  const lastTickRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (gameState === 'playing') {
-      gameIntervalRef.current = setInterval(() => {
-        setGameTime(prev => {
-          const newTime = prev + 1;
-          
-          if (newTime === 40 * 60) {
-            setGameState('paused');
-            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-          }
-          
-          if (newTime === 80 * 60) {
-            setGameState('finished');
-            if (gameIntervalRef.current) clearInterval(gameIntervalRef.current);
-          }
-          
-          return newTime;
-        });
-
-        setPlayerTimes(prev => {
-          const updated = { ...prev };
-          activePlayerIdsRef.current.forEach(id => {
-            updated[id] = (updated[id] || 0) + 1;
-          });
-          return updated;
-        });
-      }, 1000);
-    } else {
-      if (gameIntervalRef.current) {
-        clearInterval(gameIntervalRef.current);
-      }
-    }
-
-    return () => {
-      if (gameIntervalRef.current) {
-        clearInterval(gameIntervalRef.current);
-      }
-    };
-  }, [gameState]);
-
-  const startGame = (initialActivePlayers: string[], initialPlayerTimes: Record<string, number>) => {
-    setPlayerTimes(initialPlayerTimes);
-    setActivePlayerIds(initialActivePlayers);
-    setGameTime(0);
+  const startGame = useCallback((initialActivePlayers: string[], initialTimes: Record<string, number>) => {
     setGameState('playing');
-  };
+    setGameTime(0);
+    setPlayerTimes(initialTimes);
+    setActivePlayerIds(initialActivePlayers);
+    lastTickRef.current = Date.now();
+  }, []);
 
-  const togglePlayPause = () => {
-    if (gameState === 'playing') {
-      setGameState('paused');
-    } else if (gameState === 'paused') {
-      setGameState('playing');
-    }
-  };
+  const togglePlayPause = useCallback(() => {
+    setGameState(prev => {
+      if (prev === 'playing') {
+        lastTickRef.current = null;
+        return 'paused';
+      }
+      if (prev === 'paused') {
+        lastTickRef.current = Date.now();
+        return 'playing';
+      }
+      return prev;
+    });
+  }, []);
 
-  const cancelGame = () => {
-    setGameState('stopped');
+  const cancelGame = useCallback(() => {
+    setGameState('idle');
     setGameTime(0);
     setPlayerTimes({});
     setActivePlayerIds([]);
-  };
+    lastTickRef.current = null;
+  }, []);
 
-  return {
-    gameState,
-    gameTime,
-    playerTimes,
-    activePlayerIds,
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (gameState === 'playing') {
+      // Ensure we have a baseline timestamp
+      if (!lastTickRef.current) {
+        lastTickRef.current = Date.now();
+      }
+
+      intervalId = setInterval(() => {
+        const now = Date.now();
+        // Calculate time passed since the last tick
+        // If the browser was backgrounded, this delta will include that time
+        const deltaMs = now - (lastTickRef.current || now);
+        
+        // Only update if at least 1 second has passed
+        if (deltaMs >= 1000) {
+          const deltaSeconds = Math.floor(deltaMs / 1000);
+          
+          setGameTime(prev => prev + deltaSeconds);
+          
+          setPlayerTimes(prev => {
+            const next = { ...prev };
+            activePlayerIds.forEach(id => {
+              next[id] = (next[id] || 0) + deltaSeconds;
+            });
+            return next;
+          });
+
+          // Advance the last tick by the exact amount of seconds we processed
+          // keeping any sub-second remainder for the next tick to prevent drift
+          if (lastTickRef.current) {
+             lastTickRef.current += deltaSeconds * 1000;
+          }
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [gameState, activePlayerIds]);
+
+  return { 
+    gameState, 
+    gameTime, 
+    playerTimes, 
+    activePlayerIds, 
     setActivePlayerIds,
-    startGame,
-    togglePlayPause,
-    cancelGame
+    startGame, 
+    togglePlayPause, 
+    cancelGame 
   };
 };

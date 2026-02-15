@@ -311,4 +311,222 @@ describe('SoccerTimeTracker App UI', () => {
     
     confirmSpy.mockRestore();
   });
+
+  test('allows importing a team from CSV', async () => {
+    const fileContent = 'First Name, Last Name, Number, Position\nImported, Player, 99, GK';
+    const file = new File([fileContent], 'Imported Team.csv', { type: 'text/csv' });
+
+    // Mock FileReader
+    const originalFileReader = window.FileReader;
+    const mockFileReader = class {
+      onload: any = null;
+      readAsText() {
+        setTimeout(() => {
+          if (this.onload) {
+            this.onload({ target: { result: fileContent } });
+          }
+        }, 0);
+      }
+    } as any;
+    
+    Object.defineProperty(window, 'FileReader', {
+      value: mockFileReader,
+      writable: true
+    });
+
+    render(<App />);
+    
+    const input = screen.getByLabelText(/Import Team CSV/i);
+    
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByText('Imported Team')).toBeInTheDocument();
+    expect(screen.getByText('Imported Player')).toBeInTheDocument();
+    expect(screen.getByText('#99')).toBeInTheDocument();
+
+    // Restore
+    Object.defineProperty(window, 'FileReader', {
+      value: originalFileReader,
+      writable: true
+    });
+  });
+
+  test('allows exporting game history to CSV', () => {
+    // Mock URL.createObjectURL
+    const originalCreateObjectURL = window.URL.createObjectURL;
+    window.URL.createObjectURL = jest.fn();
+    
+    // Setup history data
+    const gameRecord = {
+      id: 'g1',
+      date: new Date().toISOString(),
+      name: 'Export Match',
+      teamName: 'Export FC',
+      totalTime: 3600,
+      playerStats: [
+        { id: 'p1', name: 'Player One', number: '1', time: 3600 }
+      ]
+    };
+    const team = {
+      id: 't_export',
+      name: 'Export FC',
+      players: []
+    };
+    window.localStorage.setItem('teams', JSON.stringify([team]));
+    window.localStorage.setItem('gameHistory', JSON.stringify([gameRecord]));
+
+    render(<App />);
+    
+    // Navigate to history via team
+    fireEvent.click(screen.getByText('Export FC'));
+    fireEvent.click(screen.getByText('History'));
+    
+    // Check if export button exists
+    const exportButton = screen.getByText('Export CSV');
+    expect(exportButton).toBeInTheDocument();
+    
+    // Click export
+    fireEvent.click(exportButton);
+    
+    expect(window.URL.createObjectURL).toHaveBeenCalled();
+    
+    // Restore
+    if (originalCreateObjectURL) {
+      window.URL.createObjectURL = originalCreateObjectURL;
+    } else {
+      // @ts-ignore
+      delete window.URL.createObjectURL;
+    }
+  });
+
+  test('displays aggregated player stats for a team', async () => {
+    // Setup history data with two games
+    const team = {
+      id: 't_stats',
+      name: 'Stats FC',
+      players: [
+        { id: 'p1', firstName: 'Player', lastName: 'One', number: '1', position: 'GK' },
+        { id: 'p2', firstName: 'Player', lastName: 'Two', number: '2', position: 'CB' }
+      ]
+    };
+    const game1 = {
+      id: 'g1',
+      date: new Date().toISOString(),
+      name: 'Game 1',
+      teamName: 'Stats FC',
+      totalTime: 3600,
+      playerStats: [
+        { id: 'p1', name: 'Player One', number: '1', time: 3600 },
+        { id: 'p2', name: 'Player Two', number: '2', time: 1800 }
+      ]
+    };
+    const game2 = {
+      id: 'g2',
+      date: new Date().toISOString(),
+      name: 'Game 2',
+      teamName: 'Stats FC',
+      totalTime: 3600,
+      playerStats: [
+        { id: 'p1', name: 'Player One', number: '1', time: 3600 }, // Total 7200 (120:00)
+        { id: 'p2', name: 'Player Two', number: '2', time: 0 }    // Total 1800 (30:00), 1 game played
+      ]
+    };
+    window.localStorage.setItem('teams', JSON.stringify([team]));
+    window.localStorage.setItem('gameHistory', JSON.stringify([game1, game2]));
+
+    render(<App />);
+    
+    // Navigate to team then stats
+    fireEvent.click(await screen.findByText('Stats FC'));
+    fireEvent.click(screen.getByText('Team Stats'));
+    
+    // Check Player One
+    const row1 = screen.getByText(/Player One/).closest('tr');
+    expect(within(row1!).getByText('2')).toBeInTheDocument(); // 2 games
+    expect(within(row1!).getByText('120:00')).toBeInTheDocument(); // Total time
+
+    // Check Player Two
+    const row2 = screen.getByText(/Player Two/).closest('tr');
+    expect(within(row2!).getByText('1')).toBeInTheDocument(); // 1 game (since time was 0 in second game)
+    expect(within(row2!).getByText('30:00')).toBeInTheDocument(); // Total time
+  });
+
+  test('allows undoing a recorded goal', async () => {
+    jest.useFakeTimers();
+    const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => true);
+    
+    const team = {
+      id: 't_goals',
+      name: 'Goals FC',
+      players: [
+        { id: 'p1', firstName: 'Striker', lastName: 'One', number: '9', position: 'CF' }
+      ]
+    };
+    window.localStorage.setItem('teams', JSON.stringify([team]));
+
+    render(<App />);
+    
+    // Start game
+    fireEvent.click(await screen.findByText('Goals FC'));
+    fireEvent.click(screen.getByText('Set Formation & Start Game'));
+    fireEvent.click(screen.getByText('Auto-Assign Players'));
+    fireEvent.change(screen.getByPlaceholderText('Enter game name...'), { target: { value: 'Goal Match' } });
+    fireEvent.click(screen.getByText('Start Game'));
+
+    // Score a goal
+    const playerCard = screen.getByText('S. One').closest('div[draggable="true"]');
+    if (!playerCard) throw new Error('Player card not found');
+    
+    fireEvent.click(playerCard); // Click to score
+    expect(confirmSpy).toHaveBeenCalledWith('Goal scored by S. One?');
+    expect(screen.getByText('⚽ 1')).toBeInTheDocument();
+
+    // Undo goal
+    fireEvent.click(screen.getByLabelText('Undo Last Goal'));
+    expect(confirmSpy).toHaveBeenCalledWith('Undo last goal by S. One?');
+    expect(screen.queryByText('⚽ 1')).not.toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  test('filters game history by team', async () => {
+    const teamA = {
+      id: 't_a',
+      name: 'Team A',
+      players: []
+    };
+    const teamB = {
+      id: 't_b',
+      name: 'Team B',
+      players: []
+    };
+    
+    const gameA = {
+      id: 'g_a',
+      date: new Date().toISOString(),
+      name: 'Match A',
+      teamName: 'Team A',
+      totalTime: 3600,
+      playerStats: []
+    };
+    const gameB = {
+      id: 'g_b',
+      date: new Date().toISOString(),
+      name: 'Match B',
+      teamName: 'Team B',
+      totalTime: 3600,
+      playerStats: []
+    };
+
+    window.localStorage.setItem('teams', JSON.stringify([teamA, teamB]));
+    window.localStorage.setItem('gameHistory', JSON.stringify([gameA, gameB]));
+
+    render(<App />);
+    
+    fireEvent.click(await screen.findByText('Team A'));
+    fireEvent.click(screen.getByText('History'));
+    
+    expect(screen.getByText('Match A')).toBeInTheDocument();
+    expect(screen.queryByText('Match B')).not.toBeInTheDocument();
+  });
 });

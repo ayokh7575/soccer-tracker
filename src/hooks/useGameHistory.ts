@@ -5,6 +5,7 @@ export interface PlayerStat {
   name: string;
   number: string;
   time: number;
+  goals: number;
 }
 
 export interface GameRecord {

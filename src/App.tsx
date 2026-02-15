@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Pause, Square, Clock, Plus, Trash2, Save, History as HistoryIcon } from 'lucide-react';
+import { Play, Pause, Square, Clock, Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, Undo2 } from 'lucide-react';
 import { useTeamStorage } from './hooks/useTeamStorage';
 import { useGameTimer } from './hooks/useGameTimer';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
@@ -53,6 +53,8 @@ export default function SoccerTimeTracker() {
   const [playerNumber, setPlayerNumber] = useState('');
   const [playerPosition, setPlayerPosition] = useState('');
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [playerGoals, setPlayerGoals] = useState<Record<string, number>>({});
+  const [goalHistory, setGoalHistory] = useState<string[]>([]);
 
   // Custom Hooks
   const { teams, saveTeam, deleteTeam } = useTeamStorage();
@@ -104,6 +106,68 @@ export default function SoccerTimeTracker() {
       setView('team-detail');
       cancelEditing();
     }
+  };
+
+  const handleImportTeam = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (!content) return;
+
+      const lines = content.split('\n');
+      let teamName = teamNameInput.trim();
+      
+      if (!teamName) {
+        teamName = file.name.replace(/\.[^/.]+$/, ""); // Use filename as team name if input is empty
+      }
+
+      const players: Player[] = [];
+      let startIndex = 0;
+      
+      // Simple check to skip header row if it exists
+      if (lines.length > 0 && (lines[0].toLowerCase().includes('first name') || lines[0].toLowerCase().includes('firstname'))) {
+        startIndex = 1;
+      }
+
+      for (let i = startIndex; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        const parts = line.split(',').map(p => p.trim());
+        if (parts.length >= 3) {
+          const [firstName, lastName, number, position = 'SUB'] = parts;
+          if (firstName && lastName && number) {
+            players.push({
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              firstName,
+              lastName,
+              number,
+              position
+            });
+          }
+        }
+      }
+
+      if (players.length > 0) {
+        const newTeam: Team = {
+          id: Date.now().toString(),
+          name: teamName,
+          players
+        };
+        saveTeam(newTeam);
+        setCurrentTeam(newTeam);
+        setTeamNameInput('');
+        setView('team-detail');
+        cancelEditing();
+      } else {
+        alert('No valid players found in CSV. Expected format: First Name, Last Name, Number, Position');
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // Reset input
   };
 
   const handleAddPlayer = () => {
@@ -174,14 +238,43 @@ export default function SoccerTimeTracker() {
     if (!allSlotsFilled) return;
     
     const times: Record<string, number> = {};
+    const goals: Record<string, number> = {};
     const activePlayers = Object.values(formationAssignments).filter(Boolean);
     
     currentTeam?.players.forEach(p => {
       times[p.id] = 0;
+      goals[p.id] = 0;
     });
     
+    setPlayerGoals(goals);
+    setGoalHistory([]);
     startGame(activePlayers, times);
     setView('game-live');
+  };
+
+  const handleGoal = (playerId: string, playerName: string) => {
+    if (window.confirm(`Goal scored by ${playerName}?`)) {
+      setPlayerGoals(prev => ({
+        ...prev,
+        [playerId]: (prev[playerId] || 0) + 1
+      }));
+      setGoalHistory(prev => [...prev, playerId]);
+    }
+  };
+
+  const handleUndoGoal = () => {
+    if (goalHistory.length === 0) return;
+    
+    const lastScorerId = goalHistory[goalHistory.length - 1];
+    const player = getPlayerById(lastScorerId);
+    
+    if (player && window.confirm(`Undo last goal by ${getPlayerDisplayName(player)}?`)) {
+      setPlayerGoals(prev => ({
+        ...prev,
+        [lastScorerId]: Math.max(0, (prev[lastScorerId] || 0) - 1)
+      }));
+      setGoalHistory(prev => prev.slice(0, -1));
+    }
   };
 
   const handleEndGame = () => {
@@ -191,7 +284,8 @@ export default function SoccerTimeTracker() {
           id: p.id,
           name: `${p.firstName} ${p.lastName}`,
           number: p.number,
-          time: playerTimes[p.id] || 0
+          time: playerTimes[p.id] || 0,
+          goals: playerGoals[p.id] || 0
         }));
 
         saveGame({
@@ -212,6 +306,41 @@ export default function SoccerTimeTracker() {
     cancelGame();
     setGameName('');
     setView('formation');
+  };
+
+  const exportHistoryToCSV = (data = history) => {
+    if (data.length === 0) return;
+
+    const headers = ['Date', 'Game Name', 'Team Name', 'Total Game Time', 'Player Name', 'Player Number', 'Player Time', 'Goals'];
+    const rows = data.flatMap(game => 
+      game.playerStats.map(stat => [
+        new Date(game.date).toLocaleDateString(),
+        game.name,
+        game.teamName,
+        formatTime(game.totalTime),
+        stat.name,
+        stat.number,
+        formatTime(stat.time),
+        stat.goals || 0
+      ])
+    );
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'soccer_tracker_history.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const getFormationSlots = () => {
@@ -261,23 +390,84 @@ export default function SoccerTimeTracker() {
     setFormationAssignments(newAssignments);
   };
 
+  const renderPlayerStats = () => {
+    const statsMap: Record<string, { id: string; name: string; number: string; totalTime: number; gamesPlayed: number; totalGoals: number }> = {};
+
+    history.forEach(game => {
+      game.playerStats.forEach(p => {
+        if (!statsMap[p.id]) {
+          statsMap[p.id] = { id: p.id, name: p.name, number: p.number, totalTime: 0, gamesPlayed: 0, totalGoals: 0 };
+        }
+        statsMap[p.id].totalTime += p.time;
+        statsMap[p.id].totalGoals += (p.goals || 0);
+        if (p.time > 0) {
+          statsMap[p.id].gamesPlayed += 1;
+        }
+      });
+    });
+
+    let sortedStats = Object.values(statsMap)
+      .filter(s => s.totalTime > 0)
+      .sort((a, b) => b.totalTime - a.totalTime);
+
+    if (currentTeam) {
+      sortedStats = sortedStats.filter(stat => currentTeam.players.some(p => p.id === stat.id));
+    }
+
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">{currentTeam ? `${currentTeam.name} Stats` : 'Player Statistics'}</h1>
+          <button onClick={() => setView(currentTeam ? 'team-detail' : 'home')} className="text-blue-600 hover:underline">
+            {currentTeam ? 'Back to Team' : 'Back to Home'}
+          </button>
+        </div>
+
+        {sortedStats.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">No stats available. Play some games first!</p>
+        ) : (
+          <div className="bg-white rounded-lg shadow overflow-hidden border">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Games</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goals</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Time</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {sortedStats.map((stat, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">#{stat.number} {stat.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {stat.gamesPlayed}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {stat.totalGoals}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600 font-semibold">
+                      {formatTime(stat.totalTime)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderHome = () => (
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold mb-6 text-center">Soccer Time Tracker</h1>
       
-      <div className="flex justify-center mb-8">
-        <button
-          onClick={() => setView('history')}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 shadow-sm"
-        >
-          <HistoryIcon size={20} />
-          View Game History
-        </button>
-      </div>
-
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-3">Create New Team</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-4">
           <input
             type="text"
             value={teamNameInput}
@@ -293,6 +483,21 @@ export default function SoccerTimeTracker() {
             Create
           </button>
         </div>
+        
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">Or import from CSV:</span>
+          <label className="cursor-pointer px-4 py-2 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 flex items-center gap-2 text-sm font-medium text-gray-700">
+            <Upload size={16} />
+            <span>Import Team CSV</span>
+            <input 
+              type="file" 
+              accept=".csv" 
+              onChange={handleImportTeam} 
+              className="hidden" 
+            />
+          </label>
+        </div>
+        <p className="text-xs text-gray-400 mt-1 ml-1">Format: First Name, Last Name, Number, Position</p>
       </div>
 
       <div>
@@ -327,9 +532,27 @@ export default function SoccerTimeTracker() {
 
   const renderTeamDetail = () => (
     <div className="p-6 max-w-4xl mx-auto">
-      <button onClick={() => { setView('home'); cancelEditing(); }} className="mb-4 text-blue-600 hover:underline">
-        &larr; Back to Teams
-      </button>
+      <div className="flex justify-between items-center mb-4">
+        <button onClick={() => { setCurrentTeam(null); setView('home'); cancelEditing(); }} className="text-blue-600 hover:underline">
+          &larr; Back to Teams
+        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setView('history')}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 shadow-sm"
+          >
+            <HistoryIcon size={20} />
+            History
+          </button>
+          <button
+            onClick={() => setView('player-stats')}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 shadow-sm"
+          >
+            <BarChart2 size={20} />
+            Team Stats
+          </button>
+        </div>
+      </div>
       
       <h1 className="text-3xl font-bold mb-6">{currentTeam.name}</h1>
 
@@ -552,64 +775,83 @@ export default function SoccerTimeTracker() {
     );
   };
 
-  const renderHistory = () => (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">Game History</h1>
-        <button onClick={() => setView('home')} className="text-blue-600 hover:underline">
-          Back to Home
-        </button>
-      </div>
-      
-      {history.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">No games saved yet.</p>
-      ) : (
-        <div className="space-y-4">
-          {history.map(game => (
-            <div key={game.id} className="bg-white p-4 rounded-lg shadow border">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <h3 className="font-bold text-lg">{game.name}</h3>
-                  <p className="text-sm text-gray-600">
-                    {new Date(game.date).toLocaleDateString()} • {game.teamName}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono font-bold text-xl text-blue-600">
-                    {formatTime(game.totalTime)}
-                  </div>
-                  <button 
-                    onClick={() => {
-                      if (window.confirm('Delete this record?')) {
-                        deleteGameHistory(game.id);
-                      }
-                    }}
-                    className="text-red-500 text-xs hover:underline mt-1"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-              
-              <div className="border-t pt-3">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Player Stats</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                  {game.playerStats.map(stat => (
-                    <div key={stat.id} className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm">
-                      <span className="truncate mr-2">#{stat.number} {stat.name}</span>
-                      <span className={`font-mono ${stat.time > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
-                        {formatTime(stat.time)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
+  const renderHistory = () => {
+    const displayedHistory = currentTeam 
+      ? history.filter(game => game.teamName === currentTeam.name)
+      : history;
+
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">{currentTeam ? `${currentTeam.name} History` : 'Game History'}</h1>
+          <div className="flex gap-4">
+            {displayedHistory.length > 0 && (
+              <button 
+                onClick={() => exportHistoryToCSV(displayedHistory)}
+                className="flex items-center gap-2 text-green-600 hover:underline"
+              >
+                <Download size={20} /> Export CSV
+              </button>
+            )}
+            <button onClick={() => setView(currentTeam ? 'team-detail' : 'home')} className="text-blue-600 hover:underline">
+              {currentTeam ? 'Back to Team' : 'Back to Home'}
+            </button>
+          </div>
         </div>
-      )}
-    </div>
-  );
+        
+        {displayedHistory.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">No games saved {currentTeam ? 'for this team' : ''}.</p>
+        ) : (
+          <div className="space-y-4">
+            {displayedHistory.map(game => (
+              <div key={game.id} className="bg-white p-4 rounded-lg shadow border">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 className="font-bold text-lg">{game.name}</h3>
+                    <p className="text-sm text-gray-600">
+                      {new Date(game.date).toLocaleDateString()} • {game.teamName}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono font-bold text-xl text-blue-600">
+                      {formatTime(game.totalTime)}
+                    </div>
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('Delete this record?')) {
+                          deleteGameHistory(game.id);
+                        }
+                      }}
+                      className="text-red-500 text-xs hover:underline mt-1"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="border-t pt-3">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Player Stats</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    {game.playerStats.map(stat => (
+                      <div key={stat.id} className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm">
+                        <span className="truncate mr-2">#{stat.number} {stat.name}</span>
+                        <span className={`font-mono ${stat.time > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+                          {formatTime(stat.time)}
+                        </span>
+                        {stat.goals > 0 && (
+                          <span className="ml-2 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">⚽ {stat.goals}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderGameLive = () => {
     const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
@@ -628,6 +870,16 @@ export default function SoccerTimeTracker() {
             </div>
             <div className="flex gap-2">
               {gameState !== 'finished' && (
+                <>
+                  {goalHistory.length > 0 && (
+                    <button
+                      onClick={handleUndoGoal}
+                      aria-label="Undo Last Goal"
+                      className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                    >
+                      <Undo2 size={18} />
+                    </button>
+                  )}
                 <button
                   onClick={togglePlayPause}
                   aria-label="Toggle Timer"
@@ -635,6 +887,7 @@ export default function SoccerTimeTracker() {
                 >
                   {gameState === 'playing' ? <Pause size={18} /> : <Play size={18} />}
                 </button>
+                </>
               )}
               <button
                 onClick={handleEndGame}
@@ -677,6 +930,14 @@ export default function SoccerTimeTracker() {
                     onDragOver={handleDragOver}
                     onDragEnter={handleDragEnter}
                     onDrop={(e) => handleDropOnSlot(e, slot)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (player) handleGoal(player.id, getPlayerDisplayName(player));
+                    }}
+                    onClick={(e) => {
+                      // Allow click to mark goal (useful for mobile touch)
+                      if (player) handleGoal(player.id, getPlayerDisplayName(player));
+                    }}
                   >
                     {player ? (
                       <div
@@ -689,6 +950,9 @@ export default function SoccerTimeTracker() {
                         <div className="text-xs font-semibold text-blue-600">
                           {formatTime(playerTimes[player.id] || 0)}
                         </div>
+                        {(playerGoals[player.id] || 0) > 0 && (
+                          <div className="absolute -top-2 -right-2 bg-yellow-400 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">⚽ {playerGoals[player.id]}</div>
+                        )}
                       </div>
                     ) : (
                       <div className="bg-white bg-opacity-50 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg border-2 border-dashed border-white">
@@ -741,6 +1005,7 @@ export default function SoccerTimeTracker() {
       {view === 'formation' && renderFormation()}
       {view === 'game-live' && renderGameLive()}
       {view === 'history' && renderHistory()}
+      {view === 'player-stats' && renderPlayerStats()}
     </div>
   );
 }
