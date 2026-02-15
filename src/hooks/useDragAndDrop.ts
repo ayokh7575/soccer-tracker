@@ -29,6 +29,10 @@ export const useDragAndDrop = ({
     e.dataTransfer.dropEffect = 'move';
   };
 
+  const handleDragEnter = (e: DragEvent) => {
+    e.preventDefault();
+  };
+
   const handleDropOnSlot = (e: DragEvent, slotKey: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -98,6 +102,7 @@ export const useDragAndDrop = ({
     draggedFromSlot,
     handleDragStart,
     handleDragOver,
+    handleDragEnter,
     handleDropOnSlot,
     handleDropOnBench
   };

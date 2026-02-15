@@ -72,6 +72,7 @@ export default function SoccerTimeTracker() {
   const {
     handleDragStart,
     handleDragOver,
+    handleDragEnter,
     handleDropOnSlot,
     handleDropOnBench
   } = useDragAndDrop({ formationAssignments, setFormationAssignments, activePlayerIds, setActivePlayerIds, view });
@@ -473,6 +474,7 @@ export default function SoccerTimeTracker() {
                     className="absolute transform -translate-x-1/2 -translate-y-1/2"
                     style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                     onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
                     onDrop={(e) => handleDropOnSlot(e, slot)}
                   >
                     {assignedPlayer ? (
@@ -501,6 +503,7 @@ export default function SoccerTimeTracker() {
             <div 
               className="flex flex-wrap gap-3 min-h-[200px] p-3 border-2 border-dashed rounded-lg"
               onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
               onDrop={handleDropOnBench}
             >
               {unassignedPlayers.map(player => (
@@ -672,6 +675,7 @@ export default function SoccerTimeTracker() {
                     className="absolute transform -translate-x-1/2 -translate-y-1/2"
                     style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                     onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
                     onDrop={(e) => handleDropOnSlot(e, slot)}
                   >
                     {player ? (
@@ -702,6 +706,7 @@ export default function SoccerTimeTracker() {
             <div 
               className="flex flex-wrap gap-3 p-3 border-2 border-dashed rounded-lg min-h-[200px]"
               onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
               onDrop={handleDropOnBench}
             >
               {substitutes.map(player => (
