@@ -8,10 +8,13 @@ export const useGameTimer = () => {
 
   // Use a ref to track the last time the timer updated to handle background throttling
   const lastTickRef = useRef<number | null>(null);
+  // Use a ref to track accumulated time synchronously to avoid stale state in intervals
+  const accumulatedTimeRef = useRef(0);
 
   const startGame = useCallback((initialActivePlayers: string[], initialTimes: Record<string, number>) => {
     setGameState('playing');
     setGameTime(0);
+    accumulatedTimeRef.current = 0;
     setPlayerTimes(initialTimes);
     setActivePlayerIds(initialActivePlayers);
     lastTickRef.current = Date.now();
@@ -34,6 +37,7 @@ export const useGameTimer = () => {
   const cancelGame = useCallback(() => {
     setGameState('idle');
     setGameTime(0);
+    accumulatedTimeRef.current = 0;
     setPlayerTimes({});
     setActivePlayerIds([]);
     lastTickRef.current = null;
@@ -57,8 +61,41 @@ export const useGameTimer = () => {
         // Only update if at least 1 second has passed
         if (deltaMs >= 1000) {
           const deltaSeconds = Math.floor(deltaMs / 1000);
+          const currentTime = accumulatedTimeRef.current;
+          const newTime = currentTime + deltaSeconds;
+
+          // Check for Half Time (40 mins = 2400 seconds)
+          if (currentTime < 2400 && newTime >= 2400) {
+            const timeToAdd = 2400 - currentTime;
+            setGameTime(2400);
+            accumulatedTimeRef.current = 2400;
+            setPlayerTimes(prev => {
+              const next = { ...prev };
+              activePlayerIds.forEach(id => { next[id] = (next[id] || 0) + timeToAdd; });
+              return next;
+            });
+            setGameState('paused');
+            lastTickRef.current = null;
+            return;
+          }
+
+          // Check for Full Time (80 mins = 4800 seconds)
+          if (currentTime < 4800 && newTime >= 4800) {
+            const timeToAdd = 4800 - currentTime;
+            setGameTime(4800);
+            accumulatedTimeRef.current = 4800;
+            setPlayerTimes(prev => {
+              const next = { ...prev };
+              activePlayerIds.forEach(id => { next[id] = (next[id] || 0) + timeToAdd; });
+              return next;
+            });
+            setGameState('finished');
+            lastTickRef.current = null;
+            return;
+          }
           
-          setGameTime(prev => prev + deltaSeconds);
+          setGameTime(newTime);
+          accumulatedTimeRef.current = newTime;
           
           setPlayerTimes(prev => {
             const next = { ...prev };

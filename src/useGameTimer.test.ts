@@ -13,7 +13,7 @@ describe('useGameTimer', () => {
   it('should initialize with default values', () => {
     const { result } = renderHook(() => useGameTimer());
     
-    expect(result.current.gameState).toBe('stopped');
+    expect(result.current.gameState).toBe('idle');
     expect(result.current.gameTime).toBe(0);
     expect(result.current.playerTimes).toEqual({});
     expect(result.current.activePlayerIds).toEqual([]);
@@ -101,9 +101,18 @@ describe('useGameTimer', () => {
       result.current.startGame([], {});
     });
 
-    // Advance to 80 minutes (4800 seconds)
+    // Advance to half-time (2400 seconds)
     act(() => {
-      jest.advanceTimersByTime(4800 * 1000);
+      jest.advanceTimersByTime(2400 * 1000);
+    });
+    expect(result.current.gameState).toBe('paused');
+
+    // Resume and advance to full-time
+    act(() => {
+      result.current.togglePlayPause();
+    });
+    act(() => {
+      jest.advanceTimersByTime(2400 * 1000);
     });
 
     expect(result.current.gameTime).toBe(4800);
@@ -122,7 +131,7 @@ describe('useGameTimer', () => {
       result.current.cancelGame();
     });
 
-    expect(result.current.gameState).toBe('stopped');
+    expect(result.current.gameState).toBe('idle');
     expect(result.current.gameTime).toBe(0);
     expect(result.current.playerTimes).toEqual({});
     expect(result.current.activePlayerIds).toEqual([]);

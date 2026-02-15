@@ -304,9 +304,9 @@ describe('SoccerTimeTracker App UI', () => {
     fireEvent.click(stopButton);
     
     expect(confirmSpy).toHaveBeenCalledWith('Game ended. Save to history?');
-    expect(screen.getByText('Game History')).toBeInTheDocument();
+    expect(screen.getByText('History FC History')).toBeInTheDocument();
     expect(screen.getByText('Championship Final')).toBeInTheDocument();
-    expect(screen.getByText(/History FC/)).toBeInTheDocument();
+    expect(screen.getAllByText(/History FC/).length).toBeGreaterThan(0);
     expect(screen.getAllByText('01:00').length).toBeGreaterThan(0);
     
     confirmSpy.mockRestore();
@@ -354,7 +354,11 @@ describe('SoccerTimeTracker App UI', () => {
   test('allows exporting game history to CSV', () => {
     // Mock URL.createObjectURL
     const originalCreateObjectURL = window.URL.createObjectURL;
-    window.URL.createObjectURL = jest.fn();
+    window.URL.createObjectURL = jest.fn(() => 'blob:mock');
+
+    // Mock HTMLAnchorElement.prototype.click to prevent JSDOM navigation error
+    const originalClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = jest.fn();
     
     // Setup history data
     const gameRecord = {
@@ -389,6 +393,7 @@ describe('SoccerTimeTracker App UI', () => {
     fireEvent.click(exportButton);
     
     expect(window.URL.createObjectURL).toHaveBeenCalled();
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
     
     // Restore
     if (originalCreateObjectURL) {
@@ -397,6 +402,7 @@ describe('SoccerTimeTracker App UI', () => {
       // @ts-ignore
       delete window.URL.createObjectURL;
     }
+    HTMLAnchorElement.prototype.click = originalClick;
   });
 
   test('displays aggregated player stats for a team', async () => {
@@ -459,7 +465,17 @@ describe('SoccerTimeTracker App UI', () => {
       id: 't_goals',
       name: 'Goals FC',
       players: [
-        { id: 'p1', firstName: 'Striker', lastName: 'One', number: '9', position: 'CF' }
+        { id: 'p1', firstName: 'Striker', lastName: 'One', number: '9', position: 'CF' },
+        { id: 'p2', firstName: 'P', lastName: '2', number: '1', position: 'GK' },
+        { id: 'p3', firstName: 'P', lastName: '3', number: '2', position: 'CB' },
+        { id: 'p4', firstName: 'P', lastName: '4', number: '3', position: 'CB' },
+        { id: 'p5', firstName: 'P', lastName: '5', number: '4', position: 'LB' },
+        { id: 'p6', firstName: 'P', lastName: '6', number: '5', position: 'RB' },
+        { id: 'p7', firstName: 'P', lastName: '7', number: '6', position: 'CM' },
+        { id: 'p8', firstName: 'P', lastName: '8', number: '7', position: 'CM' },
+        { id: 'p9', firstName: 'P', lastName: '9', number: '8', position: 'LM' },
+        { id: 'p10', firstName: 'P', lastName: '10', number: '10', position: 'RM' },
+        { id: 'p11', firstName: 'P', lastName: '11', number: '11', position: 'CF' },
       ]
     };
     window.localStorage.setItem('teams', JSON.stringify([team]));
@@ -474,10 +490,8 @@ describe('SoccerTimeTracker App UI', () => {
     fireEvent.click(screen.getByText('Start Game'));
 
     // Score a goal
-    const playerCard = screen.getByText('S. One').closest('div[draggable="true"]');
-    if (!playerCard) throw new Error('Player card not found');
-    
-    fireEvent.click(playerCard); // Click to score
+    fireEvent.click(screen.getByText('S. One'));
+
     expect(confirmSpy).toHaveBeenCalledWith('Goal scored by S. One?');
     expect(screen.getByText('⚽ 1')).toBeInTheDocument();
 
@@ -528,5 +542,55 @@ describe('SoccerTimeTracker App UI', () => {
     
     expect(screen.getByText('Match A')).toBeInTheDocument();
     expect(screen.queryByText('Match B')).not.toBeInTheDocument();
+  });
+
+  test('sorts player stats', async () => {
+    const team = {
+      id: 't_sort',
+      name: 'Sort FC',
+      players: [
+        { id: 'p1', firstName: 'A', lastName: 'Player', number: '1', position: 'GK' },
+        { id: 'p2', firstName: 'B', lastName: 'Player', number: '2', position: 'CB' }
+      ]
+    };
+    
+    // Game where P1 plays 10s, P2 plays 20s
+    const game = {
+      id: 'g_sort',
+      date: new Date().toISOString(),
+      name: 'Sort Match',
+      teamName: 'Sort FC',
+      totalTime: 60,
+      playerStats: [
+        { id: 'p1', name: 'A. Player', number: '1', time: 10, goals: 0 },
+        { id: 'p2', name: 'B. Player', number: '2', time: 20, goals: 1 }
+      ]
+    };
+
+    window.localStorage.setItem('teams', JSON.stringify([team]));
+    window.localStorage.setItem('gameHistory', JSON.stringify([game]));
+
+    render(<App />);
+    
+    fireEvent.click(await screen.findByText('Sort FC'));
+    fireEvent.click(screen.getByText('Team Stats'));
+
+    // Default sort is Total Time DESC -> P2 (20s) should be before P1 (10s)
+    const rows = screen.getAllByRole('row');
+    // rows[0] is header
+    expect(rows[1]).toHaveTextContent('B. Player');
+    expect(rows[2]).toHaveTextContent('A. Player');
+
+    // Sort by Number ASC
+    fireEvent.click(screen.getByText(/Number/));
+    const rowsAsc = screen.getAllByRole('row');
+    expect(rowsAsc[1]).toHaveTextContent('A. Player'); // #1
+    expect(rowsAsc[2]).toHaveTextContent('B. Player'); // #2
+
+    // Sort by Number DESC
+    fireEvent.click(screen.getByText(/Number/));
+    const rowsDesc = screen.getAllByRole('row');
+    expect(rowsDesc[1]).toHaveTextContent('B. Player'); // #2
+    expect(rowsDesc[2]).toHaveTextContent('A. Player'); // #1
   });
 });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Pause, Square, Clock, Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, Undo2 } from 'lucide-react';
+import { Play, Pause, Square, Clock, Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, Undo2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useTeamStorage } from './hooks/useTeamStorage';
 import { useGameTimer } from './hooks/useGameTimer';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
@@ -55,6 +55,7 @@ export default function SoccerTimeTracker() {
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [playerGoals, setPlayerGoals] = useState<Record<string, number>>({});
   const [goalHistory, setGoalHistory] = useState<string[]>([]);
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'totalTime', direction: 'desc' });
 
   // Custom Hooks
   const { teams, saveTeam, deleteTeam } = useTeamStorage();
@@ -406,13 +407,43 @@ export default function SoccerTimeTracker() {
       });
     });
 
-    let sortedStats = Object.values(statsMap)
-      .filter(s => s.totalTime > 0)
-      .sort((a, b) => b.totalTime - a.totalTime);
+    let sortedStats = Object.values(statsMap).filter(s => s.totalTime > 0);
 
     if (currentTeam) {
       sortedStats = sortedStats.filter(stat => currentTeam.players.some(p => p.id === stat.id));
     }
+
+    sortedStats.sort((a, b) => {
+      const aValue = a[sortConfig.key as keyof typeof a];
+      const bValue = b[sortConfig.key as keyof typeof b];
+
+      if (sortConfig.key === 'number') {
+        const numA = parseInt(a.number) || 0;
+        const numB = parseInt(b.number) || 0;
+        return sortConfig.direction === 'asc' ? numA - numB : numB - numA;
+      }
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+
+    const requestSort = (key: string) => {
+      let direction: 'asc' | 'desc' = 'asc';
+      if (sortConfig.key === key && sortConfig.direction === 'asc') {
+        direction = 'desc';
+      }
+      setSortConfig({ key, direction });
+    };
+
+    const SortIcon = ({ column }: { column: string }) => {
+      if (sortConfig.key !== column) return <div className="w-4 h-4" />;
+      return sortConfig.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />;
+    };
 
     return (
       <div className="p-6 max-w-4xl mx-auto">
@@ -427,20 +458,50 @@ export default function SoccerTimeTracker() {
           <p className="text-gray-500 text-center py-8">No stats available. Play some games first!</p>
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden border">
+            <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Games</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Goals</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Time</th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => requestSort('number')}
+                  >
+                    <div className="flex items-center gap-1">Number <SortIcon column="number" /></div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => requestSort('name')}
+                  >
+                    <div className="flex items-center gap-1">Name <SortIcon column="name" /></div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => requestSort('gamesPlayed')}
+                  >
+                    <div className="flex items-center gap-1">Games <SortIcon column="gamesPlayed" /></div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => requestSort('totalGoals')}
+                  >
+                    <div className="flex items-center gap-1">Goals <SortIcon column="totalGoals" /></div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => requestSort('totalTime')}
+                  >
+                    <div className="flex items-center gap-1">Total Time <SortIcon column="totalTime" /></div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {sortedStats.map((stat, index) => (
                   <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">#{stat.number} {stat.name}</div>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      #{stat.number}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {stat.name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {stat.gamesPlayed}
@@ -455,6 +516,7 @@ export default function SoccerTimeTracker() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
@@ -925,6 +987,7 @@ export default function SoccerTimeTracker() {
                 return (
                   <div
                     key={slot}
+                    data-testid="player-slot"
                     className="absolute transform -translate-x-1/2 -translate-y-1/2"
                     style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                     onDragOver={handleDragOver}
