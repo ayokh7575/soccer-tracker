@@ -781,6 +781,74 @@ describe('SoccerTimeTracker App UI', () => {
     expect(within(pitchArea as HTMLElement).getByText('R. Card')).toBeInTheDocument();
   });
 
+  test('swaps field player with bench player in one move when dropped on bench player', async () => {
+    jest.useFakeTimers();
+
+    const team = {
+      id: 't_swap',
+      name: 'Swap FC',
+      players: [
+        { id: 'p1', firstName: 'GK', lastName: 'One', number: '1', position: 'GK' },
+        { id: 'p2', firstName: 'RB', lastName: 'Two', number: '2', position: 'RB' },
+        { id: 'p3', firstName: 'CB', lastName: 'Three', number: '3', position: 'CB' },
+        { id: 'p4', firstName: 'CB', lastName: 'Four', number: '4', position: 'CB' },
+        { id: 'p5', firstName: 'LB', lastName: 'Five', number: '5', position: 'LB' },
+        { id: 'p6', firstName: 'RM', lastName: 'Six', number: '6', position: 'RM' },
+        { id: 'p7', firstName: 'CM', lastName: 'Seven', number: '7', position: 'CM' },
+        { id: 'p8', firstName: 'CM', lastName: 'Eight', number: '8', position: 'CM' },
+        { id: 'p9', firstName: 'LM', lastName: 'Nine', number: '9', position: 'LM' },
+        { id: 'p10', firstName: 'CF', lastName: 'Ten', number: '10', position: 'CF' },
+        { id: 'p11', firstName: 'CF', lastName: 'Eleven', number: '11', position: 'CF' },
+        { id: 'p12', firstName: 'Sub', lastName: 'Player', number: '12', position: 'CM' },
+      ]
+    };
+    window.localStorage.setItem('teams', JSON.stringify([team]));
+
+    render(<App />);
+
+    // Navigate to game
+    fireEvent.click(await screen.findByText('Swap FC'));
+    fireEvent.click(screen.getByText('Set Formation & Start Game'));
+    fireEvent.click(screen.getByText('Auto-Assign Players'));
+    fireEvent.change(screen.getByPlaceholderText('Enter game name...'), { target: { value: 'Swap Match' } });
+    fireEvent.click(screen.getByText('Start Game'));
+
+    // Verify initial state
+    const getPitchArea = () => screen.getByText('Playing XI - Drag to substitute').nextElementSibling as HTMLElement;
+    const getBenchArea = () => screen.getByText('Substitutes - Drag to pitch').nextElementSibling as HTMLElement;
+
+    expect(within(getPitchArea()).getByText('G. One')).toBeInTheDocument();
+    expect(within(getBenchArea()).getByText('S. Player')).toBeInTheDocument();
+
+    // Find the field player's draggable element and the bench player element
+    const fieldPlayer = within(getPitchArea()).getByText('G. One').closest('div[draggable="true"]');
+    const benchPlayerEl = within(getBenchArea()).getByText('S. Player').closest('[data-player-id]');
+
+    if (!fieldPlayer || !benchPlayerEl) throw new Error('Elements not found');
+
+    // Simulate drag: field player (p1 in slot GK) dropped onto bench player (p12)
+    const dragData = JSON.stringify({ playerId: 'p1', sourceSlot: 'GK' });
+    const mockDataTransfer = {
+      setData: jest.fn(),
+      getData: jest.fn().mockReturnValue(dragData),
+      types: ['application/json'],
+      effectAllowed: 'move',
+      dropEffect: 'move'
+    };
+
+    fireEvent.dragStart(fieldPlayer, { dataTransfer: mockDataTransfer });
+    fireEvent.drop(benchPlayerEl, { dataTransfer: mockDataTransfer });
+
+    // Verify swap: Sub Player should be on pitch, GK One should be on bench
+    expect(within(getPitchArea()).getByText('S. Player')).toBeInTheDocument();
+    expect(within(getBenchArea()).getByText('G. One')).toBeInTheDocument();
+
+    // Verify the swapped-in player is NOT still on the bench
+    expect(within(getBenchArea()).queryByText('S. Player')).not.toBeInTheDocument();
+    // Verify the swapped-out player is NOT still on the pitch
+    expect(within(getPitchArea()).queryByText('G. One')).not.toBeInTheDocument();
+  });
+
   test('prevents adding substitute if team is down due to red card', async () => {
     jest.useFakeTimers();
     const confirmSpy = jest.spyOn(window, 'confirm').mockImplementation(() => true);

@@ -24,6 +24,7 @@ export const useDragAndDrop = ({
     setDraggedPlayer(playerId);
     setDraggedFromSlot(fromSlot);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/json', JSON.stringify({ playerId, sourceSlot: fromSlot }));
   };
 
   const handleDragOver = (e: DragEvent) => {

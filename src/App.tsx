@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Play, Pause, Square, Clock, Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, Undo2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useTeamStorage } from './hooks/useTeamStorage';
 import { useGameTimer } from './hooks/useGameTimer';
@@ -61,6 +61,9 @@ export default function SoccerTimeTracker() {
   const [selectedPlayerForAction, setSelectedPlayerForAction] = useState<{id: string, name: string} | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'totalTime', direction: 'desc' });
   const version = process.env.REACT_APP_VERSION || '0.1.0';
+  const isDragging = useRef(false);
+  const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
 
   // Custom Hooks
   const { teams, saveTeam, deleteTeam } = useTeamStorage();
@@ -82,6 +85,12 @@ export default function SoccerTimeTracker() {
     return Object.keys(layout);
   };
 
+  const safeSetActivePlayerIds = useCallback((value: React.SetStateAction<string[]>) => {
+    if (!isDragging.current) {
+      setActivePlayerIds(value);
+    }
+  }, [setActivePlayerIds]);
+
   const {
     handleDragStart,
     handleDragOver,
@@ -92,10 +101,63 @@ export default function SoccerTimeTracker() {
     formationAssignments, 
     setFormationAssignments, 
     activePlayerIds, 
-    setActivePlayerIds, 
+    setActivePlayerIds: safeSetActivePlayerIds, 
     view,
     maxPlayersOnField: getFormationSlots().length - Object.values(playerRedCards).reduce((a, b) => a + b, 0)
   });
+
+  const customHandleDropOnSlot = (e: React.DragEvent, targetSlot: string) => {
+    try {
+      // The useDragAndDrop hook is assumed to stringify an object with player and source info.
+      const draggedData = e.dataTransfer.getData("application/json");
+      if (draggedData) {
+        const { playerId: draggedPlayerId, sourceSlot } = JSON.parse(draggedData);
+        const playerInTargetSlotId = formationAssignments[targetSlot];
+
+        // Scenario: A bench player (no sourceSlot) is dropped on an active player.
+        if (playerInTargetSlotId && !sourceSlot) {
+          const newAssignments = { ...formationAssignments };
+          // Place the bench player in the target slot, implicitly moving the other player to the bench.
+          newAssignments[targetSlot] = draggedPlayerId;
+          setFormationAssignments(newAssignments);
+          return; // The custom action is complete.
+        }
+      }
+    } catch (error) {
+      // Fallback for safety if data format is not as expected.
+    }
+
+    // For all other cases, use the default hook behavior.
+    handleDropOnSlot(e, targetSlot);
+  };
+
+  useEffect(() => {
+    // When a drag and drop operation finishes, sync active players from the formation.
+    // This prevents timer freezes during swaps by ensuring activePlayerIds is updated
+    // only once from the final formation state, rather than intermediate states.
+    if (!isDragging.current) {
+        const newActiveIds = Object.values(formationAssignments).filter(pId => pId);
+        
+        const sortedNew = [...newActiveIds].sort();
+        const sortedOld = [...activePlayerIds].sort();
+
+        if (JSON.stringify(sortedNew) !== JSON.stringify(sortedOld)) {
+            setActivePlayerIds(newActiveIds);
+        }
+    }
+  }, [formationAssignments, activePlayerIds, setActivePlayerIds]);
+
+  const handleDragEnterZone = (e: React.DragEvent, targetId: string) => {
+    handleDragEnter(e);
+    setDragOverTarget(targetId);
+  };
+
+  const handleDragLeaveZone = (e: React.DragEvent) => {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) {
+      return;
+    }
+    setDragOverTarget(null);
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -844,11 +906,15 @@ export default function SoccerTimeTracker() {
                 return (
                   <div
                     key={slot}
-                    className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                    className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200 ${dragOverTarget === slot ? 'scale-110 ring-4 ring-yellow-400 rounded-full z-10' : ''}`}
                     style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                     onDragOver={handleDragOver}
-                    onDragEnter={handleDragEnter}
-                    onDrop={(e) => handleDropOnSlot(e, slot)}
+                    onDragEnter={(e) => handleDragEnterZone(e, slot)}
+                    onDragLeave={handleDragLeaveZone}
+                    onDrop={(e) => {
+                      setDragOverTarget(null);
+                      handleDropOnSlot(e, slot);
+                    }}
                   >
                     {assignedPlayer ? (
                       <div
@@ -874,10 +940,14 @@ export default function SoccerTimeTracker() {
           <div>
             <h2 className="font-semibold mb-3">Available Players</h2>
             <div 
-              className="flex flex-wrap gap-3 min-h-[200px] p-3 border-2 border-dashed rounded-lg"
+              className={`flex flex-wrap gap-3 min-h-[200px] p-3 border-2 border-dashed rounded-lg transition-colors duration-200 ${dragOverTarget === 'bench' ? 'bg-blue-50 border-blue-500' : ''}`}
               onDragOver={handleDragOver}
-              onDragEnter={handleDragEnter}
-              onDrop={handleDropOnBench}
+              onDragEnter={(e) => handleDragEnterZone(e, 'bench')}
+              onDragLeave={handleDragLeaveZone}
+              onDrop={(e) => {
+                setDragOverTarget(null);
+                handleDropOnBench(e);
+              }}
             >
               {unassignedPlayers.map(player => (
                 <div
@@ -1079,11 +1149,17 @@ export default function SoccerTimeTracker() {
                   <div
                     key={slot}
                     data-testid="player-slot"
-                    className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                    className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200 ${dragOverTarget === slot ? 'scale-110 ring-4 ring-yellow-400 rounded-full z-10' : ''}`}
                     style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                     onDragOver={handleDragOver}
-                    onDragEnter={handleDragEnter}
-                    onDrop={(e) => handleDropOnSlot(e, slot)}
+                    onDragEnter={(e) => handleDragEnterZone(e, slot)}
+                    onDragLeave={handleDragLeaveZone}
+                    onDrop={(e) => {
+                      setDraggedPlayerId(null);
+                      setDragOverTarget(null);
+                      customHandleDropOnSlot(e, slot);
+                      isDragging.current = false;
+                    }}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       if (player && gameState !== 'finished') {
@@ -1100,8 +1176,16 @@ export default function SoccerTimeTracker() {
                     {player ? (
                       <div
                         draggable={gameState !== 'finished'}
-                        onDragStart={(e) => handleDragStart(e, player.id, slot)}
-                        className="bg-white rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-move hover:shadow-xl"
+                        onDragStart={(e) => {
+                          isDragging.current = true;
+                          setDraggedPlayerId(player.id);
+                          handleDragStart(e, player.id, slot);
+                        }}
+                        onDragEnd={() => {
+                          isDragging.current = false;
+                          setDraggedPlayerId(null);
+                        }}
+                        className={`bg-white rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-move hover:shadow-xl ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''}`}
                       >
                         <div className="font-bold text-lg">#{player.number}</div>
                         <div className="text-xs text-center px-1">{getPlayerDisplayName(player)}</div>
@@ -1126,19 +1210,64 @@ export default function SoccerTimeTracker() {
           <div>
             <h2 className="font-semibold mb-3">Substitutes - Drag to pitch</h2>
             <div 
-              className="flex flex-wrap gap-3 p-3 border-2 border-dashed rounded-lg min-h-[200px]"
+              className={`flex flex-wrap gap-3 p-3 border-2 border-dashed rounded-lg min-h-[200px] transition-colors duration-200 ${dragOverTarget === 'bench' ? 'bg-blue-50 border-blue-500' : ''}`}
               onDragOver={handleDragOver}
-              onDragEnter={handleDragEnter}
-              onDrop={handleDropOnBench}
+              onDragEnter={(e) => handleDragEnterZone(e, 'bench')}
+              onDragLeave={handleDragLeaveZone}
+              onDrop={(e) => {
+                const targetElement = e.target as HTMLElement;
+                const playerDiv = targetElement.closest(`[data-player-id]`);
+                const targetBenchPlayerId = playerDiv?.getAttribute('data-player-id');
+              
+                let dropOnBenchHandled = false;
+                // If dropped on a specific player, perform swap
+                if (targetBenchPlayerId) {
+                  try {
+                    const draggedData = e.dataTransfer.getData("application/json");
+                    if (draggedData) {
+                      const { sourceSlot } = JSON.parse(draggedData);
+                      // Check if dragging from field to bench player
+                      if (sourceSlot) {
+                        const newAssignments = { ...formationAssignments };
+                        newAssignments[sourceSlot] = targetBenchPlayerId;
+                        setFormationAssignments(newAssignments);
+                        dropOnBenchHandled = true;
+                      }
+                    }
+                  } catch (error) { /* safety fallback */ }
+                }
+                
+                // If not a player-on-player swap, use the default bench drop
+                if (!dropOnBenchHandled) {
+                  handleDropOnBench(e);
+                }
+                
+                // Reset states for any drop on the bench area
+                setDraggedPlayerId(null);
+                setDragOverTarget(null);
+                isDragging.current = false;
+              }}
             >
               {substitutes.map(player => {
                 const hasRedCard = (playerRedCards[player.id] || 0) > 0;
                 return (
                 <div
                   key={player.id}
+                  data-player-id={player.id}
+                  onDragOver={handleDragOver}
+                  onDragEnter={(e) => { e.stopPropagation(); handleDragEnterZone(e, player.id); }}
+                  onDragLeave={(e) => { e.stopPropagation(); handleDragLeaveZone(e); }}
                   draggable={gameState !== 'finished' && !hasRedCard}
-                  onDragStart={(e) => handleDragStart(e, player.id, null)}
-                  className="relative bg-gray-100 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-move hover:shadow-xl"
+                  onDragStart={(e) => {
+                    isDragging.current = true;
+                    setDraggedPlayerId(player.id);
+                    handleDragStart(e, player.id, null);
+                  }}
+                  onDragEnd={() => {
+                    isDragging.current = false;
+                    setDraggedPlayerId(null);
+                  }}
+                  className={`relative bg-gray-100 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-move hover:shadow-xl transition-all duration-200 ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${dragOverTarget === player.id ? 'ring-4 ring-yellow-400 scale-110' : ''}`}
                 >
                   <div className="font-bold text-lg">#{player.number}</div>
                   <div className="text-xs text-center px-1">{getPlayerDisplayName(player)}</div>
