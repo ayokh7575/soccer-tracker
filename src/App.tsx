@@ -673,9 +673,12 @@ export default function SoccerTimeTracker() {
 
   const renderHome = () => (
     <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6 text-center">
-        Soccer Time Tracker <span className="text-lg font-normal text-gray-500">(v{version})</span>
-      </h1>
+      <div className="mb-6 text-center">
+        <h1 className="text-3xl font-bold">Soccer Time Tracker</h1>
+        <p className="text-xs text-gray-400 mt-1">
+          v{version} &copy; {new Date().getFullYear()} Alen Yokhanis
+        </p>
+      </div>
       
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-3">Create New Team</h2>
@@ -1328,13 +1331,18 @@ export default function SoccerTimeTracker() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {view === 'home' && renderHome()}
-      {view === 'team-detail' && renderTeamDetail()}
-      {view === 'formation' && renderFormation()}
-      {view === 'game-live' && renderGameLive()}
-      {view === 'history' && renderHistory()}
-      {view === 'player-stats' && renderPlayerStats()}
+    <div className="min-h-screen bg-gray-100 flex flex-col">
+      <div className="flex-1">
+        {view === 'home' && renderHome()}
+        {view === 'team-detail' && renderTeamDetail()}
+        {view === 'formation' && renderFormation()}
+        {view === 'game-live' && renderGameLive()}
+        {view === 'history' && renderHistory()}
+        {view === 'player-stats' && renderPlayerStats()}
+      </div>
+      <footer className="py-3 text-center text-xs text-gray-400">
+        &copy; {new Date().getFullYear()} Alen Yokhanis
+      </footer>
     </div>
   );
 }
