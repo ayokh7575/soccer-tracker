@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Ball Background -->
+  <circle cx="256" cy="256" r="240" fill="#ffffff" stroke="#000000" stroke-width="16"/>
+
+  <!-- Soccer Pattern -->
+  <polygon points="256,160 347,226 312,334 200,334 165,226" fill="#000000"/>
+
+  <!-- Clock Markers -->
+  <line x1="256" y1="40" x2="256" y2="70" stroke="#000000" stroke-width="16"/> <!-- 12 -->
+  <line x1="256" y1="472" x2="256" y2="442" stroke="#000000" stroke-width="16"/> <!-- 6 -->
+  <line x1="472" y1="256" x2="442" y2="256" stroke="#000000" stroke-width="16"/> <!-- 15 -->
+  <line x1="40" y1="256" x2="70" y2="256" stroke="#000000" stroke-width="16"/> <!-- 45 -->
+
+  <!-- Numbers -->
+  <text x="90" y="180" font-family="sans-serif" font-size="60" font-weight="bold" text-anchor="middle" fill="#000000">10</text>
+  <text x="422" y="180" font-family="sans-serif" font-size="60" font-weight="bold" text-anchor="middle" fill="#000000">2</text>
+
+  <!-- Clock Hands -->
+  <line x1="256" y1="256" x2="135" y2="186" stroke="#2563eb" stroke-width="20" stroke-linecap="round"/> <!-- Long hand to 10 -->
+  <line x1="256" y1="256" x2="334" y2="211" stroke="#2563eb" stroke-width="20" stroke-linecap="round"/> <!-- Short hand to 2 -->
+  <circle cx="256" cy="256" r="15" fill="#2563eb"/>
+</svg>
