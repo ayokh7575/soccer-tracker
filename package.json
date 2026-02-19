@@ -24,6 +24,7 @@
     "start": "REACT_APP_VERSION=$npm_package_version react-scripts start",
     "build": "REACT_APP_VERSION=$npm_package_version react-scripts build",
     "test": "react-scripts test",
+    "generate-icons": "node scripts/generate-icons.js",
     "eject": "react-scripts eject",
     "predeploy": "npm version patch && npm run build",
     "deploy": "gh-pages -d build"
@@ -51,6 +52,7 @@
     "autoprefixer": "^10.4.24",
     "gh-pages": "^6.3.0",
     "postcss": "^8.5.6",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.1"
   }
 }

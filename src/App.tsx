@@ -1341,7 +1341,7 @@ export default function SoccerTimeTracker() {
         {view === 'player-stats' && renderPlayerStats()}
       </div>
       <footer className="py-3 text-center text-xs text-gray-400">
-        &copy; {new Date().getFullYear()} Alen Yokhanis
+        v{version} &copy; {new Date().getFullYear()} Alen Yokhanis
       </footer>
     </div>
   );
