@@ -799,21 +799,21 @@ export default function SoccerTimeTracker() {
       
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-3">Create New Team</h2>
-        <div className="flex gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4">
           <input
             type="text"
             value={teamNameInput}
             onChange={(e) => setTeamNameInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleCreateTeam()}
             placeholder="Team name"
-            className="flex-1 px-4 py-2 border rounded"
+            className="flex-1 min-w-0 px-4 py-2 border rounded"
           />
           <input
             type="text"
             value={teamDefaultDuration || ''}
             onChange={(e) => handleDurationChange(e, setTeamDefaultDuration)}
             placeholder="Mins"
-            className="w-20 px-4 py-2 border rounded text-center"
+            className="w-16 px-2 py-2 border rounded text-center"
             title="Default Game Duration (1-90 mins)"
           />
           <button 
