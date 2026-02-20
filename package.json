@@ -1,6 +1,6 @@
 {
   "name": "soccer-tracker",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "private": true,
   "homepage": "https://ayokh7575.github.io/soccer-tracker",
   "dependencies": {
