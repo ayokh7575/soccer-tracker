@@ -8,6 +8,7 @@ import { useGameActions } from './hooks/useGameActions';
 import { PlayerRow } from './PlayerRow';
 import { Team, Player } from './types';
 import { GameLive } from './GameLive';
+import AccessGate from './AccessGate';
 import './index.css';
 
 const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'RM', 'LM', 'AM', 'LW', 'RW', 'CF'];
@@ -1276,6 +1277,7 @@ export default function SoccerTimeTracker() {
   };
 
   return (
+    <AccessGate>
     <div className="min-h-screen bg-gray-100 flex flex-col">
       <div className="flex-1">
         {view === 'home' && renderHome()}
@@ -1336,5 +1338,6 @@ export default function SoccerTimeTracker() {
         v{version} &copy; {new Date().getFullYear()} Alen Yokhanis
       </footer>
     </div>
+    </AccessGate>
   );
 }

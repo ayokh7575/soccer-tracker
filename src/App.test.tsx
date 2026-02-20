@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import App from './App';
+import { ACCESS_CODE_HASH } from './accessConfig';
 
 // Mock window.confirm
 window.confirm = jest.fn(() => true);
@@ -30,12 +31,38 @@ const localStorageMock = (function() {
 })();
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
+// Mock sessionStorage
+const sessionStorageMock = (function() {
+  let store: Record<string, string> = {};
+  return {
+    getItem: function(key: string) {
+      return store[key] || null;
+    },
+    setItem: function(key: string, value: string) {
+      store[key] = value.toString();
+    },
+    clear: function() {
+      store = {};
+    },
+    removeItem: function(key: string) {
+      delete store[key];
+    },
+    key: function(index: number) {
+      return Object.keys(store)[index] || null;
+    },
+    length: 0
+  };
+})();
+Object.defineProperty(window, 'sessionStorage', { value: sessionStorageMock });
+
 // Mock scrollIntoView
 window.HTMLElement.prototype.scrollIntoView = function() {};
 
 describe('SoccerTimeTracker Substitution Tests', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem('soccer_tracker_auth', ACCESS_CODE_HASH);
     jest.clearAllMocks();
   });
 
@@ -159,6 +186,8 @@ describe('SoccerTimeTracker Substitution Tests', () => {
 describe('SoccerTimeTracker Player Management', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem('soccer_tracker_auth', ACCESS_CODE_HASH);
     jest.clearAllMocks();
   });
 
