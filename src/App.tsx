@@ -8,7 +8,7 @@ import { PlayerRow } from './PlayerRow';
 import { Team, Player } from './types';
 import './index.css';
 
-const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'AM', 'LW', 'RW', 'CF'];
+const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'RM', 'LM', 'AM', 'LW', 'RW', 'CF'];
 const FORMATIONS = ['1-4-4-2', '1-4-3-3'];
 
 const FORMATION_LAYOUTS = {
@@ -64,6 +64,9 @@ export default function SoccerTimeTracker() {
   const isDragging = useRef(false);
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+
+  const [playersToSubIn, setPlayersToSubIn] = useState<string[]>([]);
+  const [playersToSubOut, setPlayersToSubOut] = useState<string[]>([]);
 
   // Custom Hooks
   const { teams, saveTeam, deleteTeam } = useTeamStorage();
@@ -254,7 +257,7 @@ export default function SoccerTimeTracker() {
   const handleAddPlayer = () => {
     if (playerFirstName && playerLastName && playerNumber && playerPosition) {
       const player: Player = {
-        id: Date.now().toString(),
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         firstName: playerFirstName,
         lastName: playerLastName,
         number: playerNumber,
@@ -404,6 +407,71 @@ export default function SoccerTimeTracker() {
           setActivePlayerIds(prev => [...prev, lastAction.playerId]);
         }
         setActionHistory(prev => prev.slice(0, -1));
+      }
+    }
+  };
+
+  const handleCancelSubstitution = () => {
+    setPlayersToSubIn([]);
+    setPlayersToSubOut([]);
+  };
+
+  const handlePerformSubstitution = () => {
+    if (playersToSubIn.length === 0 || playersToSubIn.length !== playersToSubOut.length) {
+      return;
+    }
+
+    const newAssignments = { ...formationAssignments };
+
+    const outPlayerSlots: { [playerId: string]: string } = {};
+    Object.entries(formationAssignments).forEach(([slot, playerId]) => {
+      if (playersToSubOut.includes(playerId)) {
+        outPlayerSlots[playerId] = slot;
+      }
+    });
+
+    const playersToBringIn = [...playersToSubIn];
+
+    playersToSubOut.forEach(outId => {
+      const slot = outPlayerSlots[outId];
+      const inId = playersToBringIn.shift();
+      if (slot && inId) {
+        newAssignments[slot] = inId;
+      }
+    });
+
+    setFormationAssignments(newAssignments);
+    handleCancelSubstitution();
+  };
+
+  const handleBenchPlayerClick = (playerId: string) => {
+    if (gameState !== 'playing') return;
+
+    const newPlayersToSubIn = playersToSubIn.includes(playerId)
+      ? playersToSubIn.filter(id => id !== playerId)
+      : [...playersToSubIn, playerId];
+
+    setPlayersToSubIn(newPlayersToSubIn);
+    setPlayersToSubOut([]);
+  };
+
+  const handleFieldPlayerClick = (player: Player) => {
+    if (playersToSubIn.length === 0) {
+      if (gameState !== 'finished') {
+        setSelectedPlayerForAction({ id: player.id, name: getPlayerDisplayName(player) });
+      }
+      return;
+    }
+
+    if (gameState !== 'playing') return;
+
+    const isSelected = playersToSubOut.includes(player.id);
+
+    if (isSelected) {
+      setPlayersToSubOut(playersToSubOut.filter(id => id !== player.id));
+    } else {
+      if (playersToSubOut.length < playersToSubIn.length) {
+        setPlayersToSubOut([...playersToSubOut, player.id]);
       }
     }
   };
@@ -1165,20 +1233,20 @@ export default function SoccerTimeTracker() {
                     }}
                     onContextMenu={(e) => {
                       e.preventDefault();
-                      if (player && gameState !== 'finished') {
+                      if (player && gameState !== 'finished' && playersToSubIn.length === 0) {
                         setSelectedPlayerForAction({ id: player.id, name: getPlayerDisplayName(player) });
                       }
                     }}
                     onClick={(e) => {
                       // Allow click to mark goal (useful for mobile touch)
-                      if (player && gameState !== 'finished') {
-                        setSelectedPlayerForAction({ id: player.id, name: getPlayerDisplayName(player) });
+                      if (player) {
+                        handleFieldPlayerClick(player);
                       }
                     }}
                   >
                     {player ? (
                       <div
-                        draggable={gameState !== 'finished'}
+                        draggable={gameState !== 'finished' && playersToSubIn.length === 0}
                         onDragStart={(e) => {
                           isDragging.current = true;
                           setDraggedPlayerId(player.id);
@@ -1188,7 +1256,7 @@ export default function SoccerTimeTracker() {
                           isDragging.current = false;
                           setDraggedPlayerId(null);
                         }}
-                        className={`bg-white rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-move hover:shadow-xl ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''}`}
+                        className={`bg-white rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-pointer hover:shadow-xl ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${playersToSubOut.includes(player.id) ? 'ring-4 ring-red-500' : ''}`}
                       >
                         <div className="font-bold text-lg">#{player.number}</div>
                         <div className="text-xs text-center px-1">{getPlayerDisplayName(player)}</div>
@@ -1260,7 +1328,8 @@ export default function SoccerTimeTracker() {
                   onDragOver={handleDragOver}
                   onDragEnter={(e) => { e.stopPropagation(); handleDragEnterZone(e, player.id); }}
                   onDragLeave={(e) => { e.stopPropagation(); handleDragLeaveZone(e); }}
-                  draggable={gameState !== 'finished' && !hasRedCard}
+                  onClick={() => handleBenchPlayerClick(player.id)}
+                  draggable={gameState !== 'finished' && !hasRedCard && playersToSubIn.length === 0}
                   onDragStart={(e) => {
                     isDragging.current = true;
                     setDraggedPlayerId(player.id);
@@ -1270,7 +1339,7 @@ export default function SoccerTimeTracker() {
                     isDragging.current = false;
                     setDraggedPlayerId(null);
                   }}
-                  className={`relative bg-gray-100 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-move hover:shadow-xl transition-all duration-200 ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${dragOverTarget === player.id ? 'ring-4 ring-yellow-400 scale-110' : ''}`}
+                  className={`relative bg-gray-100 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-pointer hover:shadow-xl transition-all duration-200 ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${dragOverTarget === player.id ? 'ring-4 ring-yellow-400 scale-110' : ''} ${playersToSubIn.includes(player.id) ? 'ring-4 ring-green-500' : ''}`}
                 >
                   <div className="font-bold text-lg">#{player.number}</div>
                   <div className="text-xs text-center px-1">{getPlayerDisplayName(player)}</div>
@@ -1292,6 +1361,25 @@ export default function SoccerTimeTracker() {
             </div>
           </div>
         </div>
+
+        {playersToSubIn.length > 0 && (
+          <div className="fixed bottom-4 right-4 z-50 flex gap-4">
+            <button
+              onClick={handleCancelSubstitution}
+              className="px-6 py-3 bg-gray-500 text-white rounded-lg shadow-lg hover:bg-gray-600 font-semibold"
+            >
+              Cancel
+            </button>
+            {playersToSubIn.length > 0 && playersToSubIn.length === playersToSubOut.length && (
+              <button
+                onClick={handlePerformSubstitution}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 font-semibold"
+              >
+                Substitute ({playersToSubIn.length})
+              </button>
+            )}
+          </div>
+        )}
 
         {selectedPlayerForAction && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setSelectedPlayerForAction(null)}>
