@@ -54,8 +54,9 @@ describe('SoccerTimeTracker Substitution Tests', () => {
       fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: firstName } });
       fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'Doe' } });
       fireEvent.change(screen.getByPlaceholderText('Number'), { target: { value: number } });
-      fireEvent.change(screen.getByRole('combobox'), { target: { value: position } });
-      fireEvent.click(screen.getByText('Add'));
+      const positionSelect = screen.getByRole('combobox');
+      fireEvent.change(positionSelect, { target: { value: position } });
+      fireEvent.click(screen.getByRole('button', { name: /Add/i }));
     };
 
     positions.forEach((pos, index) => {
@@ -152,5 +153,105 @@ describe('SoccerTimeTracker Substitution Tests', () => {
     // Deselect
     fireEvent.click(benchPlayerCard!);
     expect(benchPlayerCard?.className).not.toContain('ring-green-500');
+  });
+});
+
+describe('SoccerTimeTracker Player Management', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    jest.clearAllMocks();
+  });
+
+  const createTeam = () => {
+    render(<App />);
+    const teamNameInput = screen.getByPlaceholderText('Team name');
+    fireEvent.change(teamNameInput, { target: { value: 'Test Team' } });
+    fireEvent.click(screen.getByText('Create'));
+  };
+
+  test('creates a player with a secondary position', () => {
+    createTeam();
+
+    // Fill player form
+    fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: 'John' } });
+    fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'Doe' } });
+    fireEvent.change(screen.getByPlaceholderText('Number'), { target: { value: '10' } });
+    
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'CF' } });
+    
+    const secondaryPositionButton = screen.getByLabelText('Secondary Positions');
+    fireEvent.click(secondaryPositionButton);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'AM' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'RW' }));
+
+    // Click Add
+    fireEvent.click(screen.getByRole('button', { name: /Add/i }));
+
+    // Verify player is in the list with both positions
+    const playerRow = screen.getByTestId('player-row');
+    expect(playerRow).toHaveTextContent('John Doe');
+    expect(playerRow).toHaveTextContent('CF / AM / RW');
+  });
+
+  test('edits a player to add a secondary position', () => {
+    createTeam();
+
+    // Add a player without secondary position first
+    fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: 'Jane' } });
+    fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'Smith' } });
+    fireEvent.change(screen.getByPlaceholderText('Number'), { target: { value: '9' } });
+    const positionSelect = screen.getByRole('combobox');
+    fireEvent.change(positionSelect, { target: { value: 'CF' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add/i }));
+
+    const playerRow = screen.getByTestId('player-row');
+    expect(playerRow).toHaveTextContent('Jane Smith');
+    expect(playerRow).not.toHaveTextContent('/');
+
+    // Click edit
+    fireEvent.click(screen.getByLabelText('Edit player'));
+
+    const secondaryPositionButton = screen.getByLabelText('Secondary Positions');
+    fireEvent.click(secondaryPositionButton);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'LW' }));
+
+    fireEvent.click(screen.getByRole('button', { name: /Update/i }));
+
+    expect(playerRow).toHaveTextContent('CF / LW');
+  });
+
+  test('auto-assigns players using secondary position if primary does not match', () => {
+    createTeam();
+
+    // Add a Goalkeeper (Primary match)
+    fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: 'Goalie' } });
+    fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'McGoal' } });
+    fireEvent.change(screen.getByPlaceholderText('Number'), { target: { value: '1' } });
+    let positionSelect = screen.getByRole('combobox');
+    fireEvent.change(positionSelect, { target: { value: 'GK' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add/i }));
+
+    // Add a Striker (Secondary match) - Primary RW (not in 1-4-4-2), Secondary CF
+    fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: 'Striker' } });
+    fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'McStrike' } });
+    fireEvent.change(screen.getByPlaceholderText('Number'), { target: { value: '9' } });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'RW' } });
+    
+    const secondaryPositionButton = screen.getByLabelText('Secondary Positions');
+    fireEvent.click(secondaryPositionButton);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'CF' }));
+    
+    fireEvent.click(screen.getByRole('button', { name: /Add/i }));
+
+    // Go to Formation
+    fireEvent.click(screen.getByText('Set Formation & Start Game'));
+
+    // Auto Assign
+    fireEvent.click(screen.getByText('Auto-Assign Players'));
+
+    // Verify assignments
+    expect(screen.getByText('G. McGoal')).toBeInTheDocument();
+    expect(screen.getByText('S. McStrike')).toBeInTheDocument();
   });
 });

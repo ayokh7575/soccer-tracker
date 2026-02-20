@@ -15,7 +15,7 @@ export const PlayerRow: React.FC<PlayerRowProps> = ({ player, onRemove, onEdit, 
       <div className={player.isUnavailable ? 'opacity-50' : ''}>
         <span className="font-semibold">#{player.number}</span>
         <span className="ml-3">{player.firstName} {player.lastName}</span>
-        <span className="ml-3 text-sm bg-gray-200 px-2 py-1 rounded">{player.position}</span>
+        <span className="ml-3 text-sm bg-gray-200 px-2 py-1 rounded">{player.position}{player.secondaryPositions && player.secondaryPositions.length > 0 ? ` / ${player.secondaryPositions.join(' / ')}` : ''}</span>
         {player.isUnavailable && <span className="ml-2 text-xs text-red-600 font-semibold">(Unavailable)</span>}
       </div>
       <div className="flex gap-2">

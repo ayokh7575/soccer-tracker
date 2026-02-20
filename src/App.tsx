@@ -1,11 +1,13 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, Pause, Square, Clock, Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, Undo2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useTeamStorage } from './hooks/useTeamStorage';
 import { useGameTimer } from './hooks/useGameTimer';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
 import { useGameHistory } from './hooks/useGameHistory';
+import { useGameActions } from './hooks/useGameActions';
 import { PlayerRow } from './PlayerRow';
 import { Team, Player } from './types';
+import { GameLive } from './GameLive';
 import './index.css';
 
 const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'RM', 'LM', 'AM', 'LW', 'RW', 'CF'];
@@ -40,8 +42,6 @@ const FORMATION_LAYOUTS = {
   }
 };
 
-type GameAction = { type: 'goal'; playerId: string } | { type: 'redCard'; playerId: string; fromSlot?: string };
-
 export default function SoccerTimeTracker() {
   const [view, setView] = useState('home');
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
@@ -54,11 +54,11 @@ export default function SoccerTimeTracker() {
   const [playerLastName, setPlayerLastName] = useState('');
   const [playerNumber, setPlayerNumber] = useState('');
   const [playerPosition, setPlayerPosition] = useState('');
+  const [playerSecondaryPositions, setPlayerSecondaryPositions] = useState<string[]>([]);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
-  const [playerGoals, setPlayerGoals] = useState<Record<string, number>>({});
-  const [actionHistory, setActionHistory] = useState<GameAction[]>([]);
-  const [playerRedCards, setPlayerRedCards] = useState<Record<string, number>>({});
   const [selectedPlayerForAction, setSelectedPlayerForAction] = useState<{id: string, name: string} | null>(null);
+  const [isSecondaryPositionDropdownOpen, setIsSecondaryPositionDropdownOpen] = useState(false);
+  const secondaryPositionRef = useRef<HTMLDivElement>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'totalTime', direction: 'desc' });
   const version = process.env.REACT_APP_VERSION || '0.1.0';
   const isDragging = useRef(false);
@@ -82,6 +82,21 @@ export default function SoccerTimeTracker() {
     togglePlayPause, 
     cancelGame 
   } = useGameTimer();
+
+  const {
+    playerGoals,
+    playerRedCards,
+    actionHistory,
+    handleGoal,
+    handleRedCard,
+    handleUndoAction,
+    initializeGameActions
+  } = useGameActions({
+    currentTeam,
+    formationAssignments,
+    setFormationAssignments,
+    setActivePlayerIds
+  });
 
   const getFormationSlots = () => {
     const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
@@ -150,6 +165,27 @@ export default function SoccerTimeTracker() {
     }
   }, [formationAssignments, activePlayerIds, setActivePlayerIds]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (secondaryPositionRef.current && !secondaryPositionRef.current.contains(event.target as Node)) {
+        setIsSecondaryPositionDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleSecondaryPositionChange = (position: string) => {
+    setPlayerSecondaryPositions(prev => {
+      const newSelection = prev.includes(position)
+        ? prev.filter(p => p !== position)
+        : [...prev, position];
+      return newSelection.sort((a, b) => POSITIONS.indexOf(a) - POSITIONS.indexOf(b));
+    });
+  };
+
   const handleDragEnterZone = (e: React.DragEvent, targetId: string) => {
     handleDragEnter(e);
     setDragOverTarget(targetId);
@@ -174,6 +210,7 @@ export default function SoccerTimeTracker() {
     setPlayerLastName('');
     setPlayerNumber('');
     setPlayerPosition('');
+    setPlayerSecondaryPositions([]);
   };
 
   const handleCreateTeam = () => {
@@ -221,7 +258,7 @@ export default function SoccerTimeTracker() {
         
         const parts = line.split(',').map(p => p.trim());
         if (parts.length >= 3) {
-          const [firstName, lastName, number, position = 'SUB'] = parts;
+          const [firstName, lastName, number, position = 'SUB', secondaryPositionsRaw] = parts;
           if (firstName && lastName && number) {
             players.push({
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -229,6 +266,7 @@ export default function SoccerTimeTracker() {
               lastName,
               number,
               position,
+              secondaryPositions: secondaryPositionsRaw ? secondaryPositionsRaw.split(/[,;]/).map(p => p.trim()).filter(Boolean) : [],
               isUnavailable: false
             });
           }
@@ -262,6 +300,7 @@ export default function SoccerTimeTracker() {
         lastName: playerLastName,
         number: playerNumber,
         position: playerPosition,
+        secondaryPositions: playerSecondaryPositions,
         isUnavailable: false
       };
       const updated = { ...currentTeam, players: [...currentTeam.players, player] };
@@ -271,6 +310,7 @@ export default function SoccerTimeTracker() {
       setPlayerLastName('');
       setPlayerNumber('');
       setPlayerPosition('');
+      setPlayerSecondaryPositions([]);
     }
   };
 
@@ -280,13 +320,14 @@ export default function SoccerTimeTracker() {
     setPlayerLastName(player.lastName);
     setPlayerNumber(player.number);
     setPlayerPosition(player.position);
+    setPlayerSecondaryPositions(player.secondaryPositions || []);
   };
 
   const handleUpdatePlayer = () => {
     if (currentTeam && editingPlayerId && playerFirstName && playerLastName && playerNumber && playerPosition) {
       const updatedPlayers = currentTeam.players.map(p => 
         p.id === editingPlayerId 
-          ? { ...p, firstName: playerFirstName, lastName: playerLastName, number: playerNumber, position: playerPosition }
+          ? { ...p, firstName: playerFirstName, lastName: playerLastName, number: playerNumber, position: playerPosition, secondaryPositions: playerSecondaryPositions }
           : p
       );
       const updatedTeam = { ...currentTeam, players: updatedPlayers };
@@ -343,72 +384,9 @@ export default function SoccerTimeTracker() {
       redCards[p.id] = 0;
     });
     
-    setPlayerGoals(goals);
-    setPlayerRedCards(redCards);
-    setActionHistory([]);
+    initializeGameActions(goals, redCards);
     startGame(activePlayers, times);
     setView('game-live');
-  };
-
-  const handleGoal = (playerId: string, playerName: string) => {
-    if (window.confirm(`Goal scored by ${playerName}?`)) {
-      setPlayerGoals(prev => ({
-        ...prev,
-        [playerId]: (prev[playerId] || 0) + 1
-      }));
-      setActionHistory(prev => [...prev, { type: 'goal', playerId }]);
-    }
-  };
-
-  const handleRedCard = (playerId: string, playerName: string) => {
-    if (window.confirm(`Give Red Card to ${playerName}? Player will be sent to bench and cannot return.`)) {
-      setPlayerRedCards(prev => ({
-        ...prev,
-        [playerId]: (prev[playerId] || 0) + 1
-      }));
-
-      // Remove from pitch
-      const slot = Object.keys(formationAssignments).find(key => formationAssignments[key] === playerId);
-      if (slot) {
-        const newAssignments = { ...formationAssignments };
-        delete newAssignments[slot];
-        setFormationAssignments(newAssignments);
-      }
-
-      setActivePlayerIds(prev => prev.filter(id => id !== playerId));
-      setActionHistory(prev => [...prev, { type: 'redCard', playerId, fromSlot: slot }]);
-    }
-  };
-
-  const handleUndoAction = () => {
-    if (actionHistory.length === 0) return;
-    
-    const lastAction = actionHistory[actionHistory.length - 1];
-    const player = getPlayerById(lastAction.playerId);
-    
-    if (!player) return;
-
-    if (lastAction.type === 'goal') {
-      if (window.confirm(`Undo last goal by ${getPlayerDisplayName(player)}?`)) {
-        setPlayerGoals(prev => ({
-          ...prev,
-          [lastAction.playerId]: Math.max(0, (prev[lastAction.playerId] || 0) - 1)
-        }));
-        setActionHistory(prev => prev.slice(0, -1));
-      }
-    } else if (lastAction.type === 'redCard') {
-      if (window.confirm(`Undo red card for ${getPlayerDisplayName(player)}?`)) {
-        setPlayerRedCards(prev => ({
-          ...prev,
-          [lastAction.playerId]: Math.max(0, (prev[lastAction.playerId] || 0) - 1)
-        }));
-        if (lastAction.fromSlot && !formationAssignments[lastAction.fromSlot]) {
-          setFormationAssignments(prev => ({ ...prev, [lastAction.fromSlot!]: lastAction.playerId }));
-          setActivePlayerIds(prev => [...prev, lastAction.playerId]);
-        }
-        setActionHistory(prev => prev.slice(0, -1));
-      }
-    }
   };
 
   const handleCancelSubstitution = () => {
@@ -581,19 +559,35 @@ export default function SoccerTimeTracker() {
     const newAssignments: Record<string, string> = {};
     const usedPlayerIds = new Set<string>();
     
+    // First pass: Match primary positions
     slots.forEach(slot => {
       const slotPosition = getSlotDisplayName(slot);
       
       const matchingPlayer = currentTeam.players.find(
         player => player.position === slotPosition && !usedPlayerIds.has(player.id) && !player.isUnavailable
       );
-      
+
       if (matchingPlayer) {
         newAssignments[slot] = matchingPlayer.id;
         usedPlayerIds.add(matchingPlayer.id);
       }
     });
     
+    // Second pass: Match secondary positions for remaining slots
+    slots.forEach(slot => {
+      if (newAssignments[slot]) return; // Skip if already filled
+
+      const slotPosition = getSlotDisplayName(slot);
+      const matchingPlayer = currentTeam.players.find(
+        player => player.secondaryPositions?.includes(slotPosition) && !usedPlayerIds.has(player.id) && !player.isUnavailable
+      );
+
+      if (matchingPlayer) {
+        newAssignments[slot] = matchingPlayer.id;
+        usedPlayerIds.add(matchingPlayer.id);
+      }
+    });
+
     setFormationAssignments(newAssignments);
   };
 
@@ -782,7 +776,7 @@ export default function SoccerTimeTracker() {
         </div>
         <p className="text-xs text-gray-400 mt-1 ml-1">Format: First Name, Last Name, Number, Position</p>
       </div>
-
+      
       <div>
         <h2 className="text-xl font-semibold mb-3">My Teams</h2>
         {teams.length === 0 ? (
@@ -841,7 +835,7 @@ export default function SoccerTimeTracker() {
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-3">Add Player</h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
           <input
             type="text"
             value={playerFirstName}
@@ -875,6 +869,36 @@ export default function SoccerTimeTracker() {
               <option key={pos} value={pos}>{pos}</option>
             ))}
           </select>
+          <div className="relative" ref={secondaryPositionRef}>
+            <button
+              type="button"
+              onClick={() => setIsSecondaryPositionDropdownOpen(prev => !prev)}
+              className="w-full h-full px-3 py-2 border rounded bg-white text-left flex items-center justify-between"
+              aria-haspopup="listbox"
+              aria-expanded={isSecondaryPositionDropdownOpen}
+              aria-label="Secondary Positions"
+            >
+              <span className="block truncate text-sm">
+                {playerSecondaryPositions.length > 0 ? playerSecondaryPositions.join(', ') : 'Secondary Positions'}
+              </span>
+              <ChevronDown size={16} className="text-gray-400" />
+            </button>
+            {isSecondaryPositionDropdownOpen && (
+              <div className="absolute z-10 mt-1 w-full bg-white shadow-lg border rounded max-h-60 overflow-auto">
+                {POSITIONS.map(pos => (
+                  <label key={pos} className="flex items-center w-full px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={playerSecondaryPositions.includes(pos)}
+                      onChange={() => handleSecondaryPositionChange(pos)}
+                      className="h-4 w-4 border-gray-300 rounded mr-3"
+                    />
+                    {pos}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
           <button 
             onClick={editingPlayerId ? handleUpdatePlayer : handleAddPlayer}
             className={`px-4 py-2 ${editingPlayerId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'} text-white rounded`}
@@ -1147,284 +1171,57 @@ export default function SoccerTimeTracker() {
     );
   };
 
-  const renderGameLive = () => {
-    const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
-    const slots = getFormationSlots();
-    const substitutes = getSubstitutes();
-
-    return (
-      <div className="p-6 max-w-6xl mx-auto">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">{gameName}</h1>
-          <div className="flex items-center gap-4">
-            <div className="text-2xl font-bold flex items-center gap-2" data-testid="game-timer">
-              <Clock size={24} />
-              {formatTime(gameTime)}
-              {gameTime >= 2400 && gameTime < 4800 && <span className="text-sm">(2nd Half)</span>}
-            </div>
-            <div className="flex gap-2">
-              {gameState !== 'finished' && (
-                <>
-                  {actionHistory.length > 0 && (
-                    <button
-                      onClick={handleUndoAction}
-                      aria-label="Undo Last Action"
-                      className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                    >
-                      <Undo2 size={18} />
-                    </button>
-                  )}
-                <button
-                  onClick={togglePlayPause}
-                  aria-label="Toggle Timer"
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  {gameState === 'playing' ? <Pause size={18} /> : <Play size={18} />}
-                </button>
-                </>
-              )}
-              <button
-                onClick={handleEndGame}
-                aria-label="End Game"
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                <Square size={18} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {gameState === 'finished' && (
-          <div className="mb-4 p-4 bg-green-100 border border-green-400 rounded text-center font-semibold">
-            Game Finished!
-          </div>
-        )}
-
-        {gameTime === 2400 && gameState === 'paused' && (
-          <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 rounded text-center font-semibold">
-            Half Time - Press play to start second half
-          </div>
-        )}
-
-        <div className="grid md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
-            <h2 className="font-semibold mb-3">Playing XI - Drag to substitute</h2>
-            <div className="relative bg-green-600 rounded-lg" style={{ height: '600px' }}>
-              {slots.map(slot => {
-                const pos = layout[slot];
-                const playerId = formationAssignments[slot];
-                const player = playerId ? getPlayerById(playerId) : null;
-                const displayName = getSlotDisplayName(slot);
-
-                return (
-                  <div
-                    key={slot}
-                    data-testid="player-slot"
-                    className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-200 ${dragOverTarget === slot ? 'scale-110 ring-4 ring-yellow-400 rounded-full z-10' : ''}`}
-                    style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-                    onDragOver={handleDragOver}
-                    onDragEnter={(e) => handleDragEnterZone(e, slot)}
-                    onDragLeave={handleDragLeaveZone}
-                    onDrop={(e) => {
-                      setDraggedPlayerId(null);
-                      setDragOverTarget(null);
-                      customHandleDropOnSlot(e, slot);
-                      isDragging.current = false;
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      if (player && gameState !== 'finished' && playersToSubIn.length === 0) {
-                        setSelectedPlayerForAction({ id: player.id, name: getPlayerDisplayName(player) });
-                      }
-                    }}
-                    onClick={(e) => {
-                      // Allow click to mark goal (useful for mobile touch)
-                      if (player) {
-                        handleFieldPlayerClick(player);
-                      }
-                    }}
-                  >
-                    {player ? (
-                      <div
-                        draggable={gameState !== 'finished' && playersToSubIn.length === 0}
-                        onDragStart={(e) => {
-                          isDragging.current = true;
-                          setDraggedPlayerId(player.id);
-                          handleDragStart(e, player.id, slot);
-                        }}
-                        onDragEnd={() => {
-                          isDragging.current = false;
-                          setDraggedPlayerId(null);
-                        }}
-                        className={`bg-white rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-pointer hover:shadow-xl ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${playersToSubOut.includes(player.id) ? 'ring-4 ring-red-500' : ''}`}
-                      >
-                        <div className="font-bold text-lg">#{player.number}</div>
-                        <div className="text-xs text-center px-1">{getPlayerDisplayName(player)}</div>
-                        <div className="text-xs font-semibold text-blue-600">
-                          {formatTime(playerTimes[player.id] || 0)}
-                        </div>
-                        {(playerGoals[player.id] || 0) > 0 && (
-                          <div className="absolute -top-2 -right-2 bg-yellow-400 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">⚽ {playerGoals[player.id]}</div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="bg-white bg-opacity-50 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg border-2 border-dashed border-white">
-                        <div className="text-gray-600 text-sm font-bold">{displayName}</div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <h2 className="font-semibold mb-3">Substitutes - Drag to pitch</h2>
-            <div 
-              className={`flex flex-wrap gap-3 p-3 border-2 border-dashed rounded-lg min-h-[200px] transition-colors duration-200 ${dragOverTarget === 'bench' ? 'bg-blue-50 border-blue-500' : ''}`}
-              onDragOver={handleDragOver}
-              onDragEnter={(e) => handleDragEnterZone(e, 'bench')}
-              onDragLeave={handleDragLeaveZone}
-              onDrop={(e) => {
-                const targetElement = e.target as HTMLElement;
-                const playerDiv = targetElement.closest(`[data-player-id]`);
-                const targetBenchPlayerId = playerDiv?.getAttribute('data-player-id');
-              
-                let dropOnBenchHandled = false;
-                // If dropped on a specific player, perform swap
-                if (targetBenchPlayerId) {
-                  try {
-                    const draggedData = e.dataTransfer.getData("application/json");
-                    if (draggedData) {
-                      const { sourceSlot } = JSON.parse(draggedData);
-                      // Check if dragging from field to bench player
-                      if (sourceSlot) {
-                        const newAssignments = { ...formationAssignments };
-                        newAssignments[sourceSlot] = targetBenchPlayerId;
-                        setFormationAssignments(newAssignments);
-                        dropOnBenchHandled = true;
-                      }
-                    }
-                  } catch (error) { /* safety fallback */ }
-                }
-                
-                // If not a player-on-player swap, use the default bench drop
-                if (!dropOnBenchHandled) {
-                  handleDropOnBench(e);
-                }
-                
-                // Reset states for any drop on the bench area
-                setDraggedPlayerId(null);
-                setDragOverTarget(null);
-                isDragging.current = false;
-              }}
-            >
-              {substitutes.map(player => {
-                const hasRedCard = (playerRedCards[player.id] || 0) > 0;
-                return (
-                <div
-                  key={player.id}
-                  data-player-id={player.id}
-                  onDragOver={handleDragOver}
-                  onDragEnter={(e) => { e.stopPropagation(); handleDragEnterZone(e, player.id); }}
-                  onDragLeave={(e) => { e.stopPropagation(); handleDragLeaveZone(e); }}
-                  onClick={() => handleBenchPlayerClick(player.id)}
-                  draggable={gameState !== 'finished' && !hasRedCard && playersToSubIn.length === 0}
-                  onDragStart={(e) => {
-                    isDragging.current = true;
-                    setDraggedPlayerId(player.id);
-                    handleDragStart(e, player.id, null);
-                  }}
-                  onDragEnd={() => {
-                    isDragging.current = false;
-                    setDraggedPlayerId(null);
-                  }}
-                  className={`relative bg-gray-100 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-pointer hover:shadow-xl transition-all duration-200 ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${dragOverTarget === player.id ? 'ring-4 ring-yellow-400 scale-110' : ''} ${playersToSubIn.includes(player.id) ? 'ring-4 ring-green-500' : ''}`}
-                >
-                  <div className="font-bold text-lg">#{player.number}</div>
-                  <div className="text-xs text-center px-1">{getPlayerDisplayName(player)}</div>
-                  <div className="text-xs font-bold text-gray-700">{player.position}</div>
-                  <div className="text-xs font-semibold text-gray-500">
-                    {formatTime(playerTimes[player.id] || 0)}
-                  </div>
-                  {(playerGoals[player.id] || 0) > 0 && (
-                    <div className="absolute -top-2 -right-2 bg-yellow-400 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">⚽ {playerGoals[player.id]}</div>
-                  )}
-                  {hasRedCard && (
-                    <div className="absolute -top-2 -left-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">🟥</div>
-                  )}
-                </div>
-              )})}
-              {substitutes.length === 0 && (
-                <p className="text-gray-400 text-center text-sm py-8 w-full">No substitutes</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {playersToSubIn.length > 0 && (
-          <div className="fixed bottom-4 right-4 z-50 flex gap-4">
-            <button
-              onClick={handleCancelSubstitution}
-              className="px-6 py-3 bg-gray-500 text-white rounded-lg shadow-lg hover:bg-gray-600 font-semibold"
-            >
-              Cancel
-            </button>
-            {playersToSubIn.length > 0 && playersToSubIn.length === playersToSubOut.length && (
-              <button
-                onClick={handlePerformSubstitution}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 font-semibold"
-              >
-                Substitute ({playersToSubIn.length})
-              </button>
-            )}
-          </div>
-        )}
-
-        {selectedPlayerForAction && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setSelectedPlayerForAction(null)}>
-            <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-              <h3 className="text-xl font-bold mb-4 text-center">Action for {selectedPlayerForAction.name}</h3>
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => {
-                    handleGoal(selectedPlayerForAction.id, selectedPlayerForAction.name);
-                    setSelectedPlayerForAction(null);
-                  }}
-                  className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center justify-center gap-2"
-                >
-                  ⚽ Goal
-                </button>
-                <button
-                  onClick={() => {
-                    handleRedCard(selectedPlayerForAction.id, selectedPlayerForAction.name);
-                    setSelectedPlayerForAction(null);
-                  }}
-                  className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold flex items-center justify-center gap-2"
-                >
-                  🟥 Red Card
-                </button>
-                <button
-                  onClick={() => setSelectedPlayerForAction(null)}
-                  className="w-full py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-semibold mt-2"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
       <div className="flex-1">
         {view === 'home' && renderHome()}
         {view === 'team-detail' && renderTeamDetail()}
         {view === 'formation' && renderFormation()}
-        {view === 'game-live' && renderGameLive()}
+        {view === 'game-live' && (
+          <GameLive
+            gameName={gameName}
+            gameTime={gameTime}
+            gameState={gameState}
+            actionHistory={actionHistory}
+            formation={formation}
+            formationAssignments={formationAssignments}
+            setFormationAssignments={setFormationAssignments}
+            playerTimes={playerTimes}
+            playerGoals={playerGoals}
+            playerRedCards={playerRedCards}
+            playersToSubIn={playersToSubIn}
+            playersToSubOut={playersToSubOut}
+            selectedPlayerForAction={selectedPlayerForAction}
+            setSelectedPlayerForAction={setSelectedPlayerForAction}
+            dragOverTarget={dragOverTarget}
+            setDragOverTarget={setDragOverTarget}
+            draggedPlayerId={draggedPlayerId}
+            setDraggedPlayerId={setDraggedPlayerId}
+            isDragging={isDragging}
+            onUndoAction={handleUndoAction}
+            onTogglePlayPause={togglePlayPause}
+            onEndGame={handleEndGame}
+            onGoal={handleGoal}
+            onRedCard={handleRedCard}
+            onFieldPlayerClick={handleFieldPlayerClick}
+            onBenchPlayerClick={handleBenchPlayerClick}
+            onCancelSubstitution={handleCancelSubstitution}
+            onPerformSubstitution={handlePerformSubstitution}
+            handleDragStart={handleDragStart}
+            handleDragOver={handleDragOver}
+            handleDragEnterZone={handleDragEnterZone}
+            handleDragLeaveZone={handleDragLeaveZone}
+            customHandleDropOnSlot={customHandleDropOnSlot}
+            handleDropOnBench={handleDropOnBench}
+            formatTime={formatTime}
+            getPlayerDisplayName={getPlayerDisplayName}
+            getSlotDisplayName={getSlotDisplayName}
+            getPlayerById={getPlayerById}
+            getFormationSlots={getFormationSlots}
+            getSubstitutes={getSubstitutes}
+            formationLayouts={FORMATION_LAYOUTS}
+          />
+        )}
         {view === 'history' && renderHistory()}
         {view === 'player-stats' && renderPlayerStats()}
       </div>

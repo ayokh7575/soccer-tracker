@@ -4,6 +4,7 @@ export interface Player {
   lastName: string;
   number: string;
   position: string;
+  secondaryPositions?: string[];
   isUnavailable?: boolean;
 }
 
@@ -12,3 +13,5 @@ export interface Team {
   name: string;
   players: Player[];
 }
+
+export type GameAction = { type: 'goal'; playerId: string } | { type: 'redCard'; playerId: string; fromSlot?: string };
