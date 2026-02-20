@@ -1,12 +1,12 @@
 {
   "files": {
-    "main.css": "/soccer-tracker/static/css/main.2f467468.css",
-    "main.js": "/soccer-tracker/static/js/main.094908b9.js",
+    "main.css": "/soccer-tracker/static/css/main.33b41e96.css",
+    "main.js": "/soccer-tracker/static/js/main.19774fd0.js",
     "static/js/206.3d71d745.chunk.js": "/soccer-tracker/static/js/206.3d71d745.chunk.js",
     "index.html": "/soccer-tracker/index.html"
   },
   "entrypoints": [
-    "static/css/main.2f467468.css",
-    "static/js/main.094908b9.js"
+    "static/css/main.33b41e96.css",
+    "static/js/main.19774fd0.js"
   ]
 }
