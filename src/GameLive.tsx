@@ -4,6 +4,7 @@ import { Player, GameAction } from './types';
 
 interface GameLiveProps {
   gameName: string;
+  gameDuration: number;
   gameTime: number;
   gameState: string;
   actionHistory: GameAction[];
@@ -47,10 +48,14 @@ interface GameLiveProps {
   getFormationSlots: () => string[];
   getSubstitutes: () => Player[];
   formationLayouts: any;
+
+  substituteSortKey: 'number' | 'position';
+  onSetSubstituteSortKey: (key: 'number' | 'position') => void;
 }
 
 export const GameLive: React.FC<GameLiveProps> = ({
   gameName,
+  gameDuration,
   gameTime,
   gameState,
   actionHistory,
@@ -90,11 +95,15 @@ export const GameLive: React.FC<GameLiveProps> = ({
   getPlayerById,
   getFormationSlots,
   getSubstitutes,
-  formationLayouts
+  formationLayouts,
+  substituteSortKey,
+  onSetSubstituteSortKey,
 }) => {
   const layout = formationLayouts[formation];
   const slots = getFormationSlots();
   const substitutes = getSubstitutes();
+  const halfTimeSeconds = (gameDuration / 2) * 60;
+  const fullTimeSeconds = gameDuration * 60;
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -104,7 +113,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
           <div className="text-2xl font-bold flex items-center gap-2" data-testid="game-timer">
             <Clock size={24} />
             {formatTime(gameTime)}
-            {gameTime >= 2400 && gameTime < 4800 && <span className="text-sm">(2nd Half)</span>}
+            {gameTime >= halfTimeSeconds && gameTime < fullTimeSeconds && <span className="text-sm">(2nd Half)</span>}
           </div>
           <div className="flex gap-2">
             {gameState !== 'finished' && (
@@ -144,7 +153,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
         </div>
       )}
 
-      {gameTime === 2400 && gameState === 'paused' && (
+      {gameTime === halfTimeSeconds && gameState === 'paused' && (
         <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 rounded text-center font-semibold">
           Half Time - Press play to start second half
         </div>
@@ -222,7 +231,23 @@ export const GameLive: React.FC<GameLiveProps> = ({
         </div>
 
         <div>
-          <h2 className="font-semibold mb-3">Substitutes - Drag to pitch</h2>
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="font-semibold">Substitutes - Drag to pitch</h2>
+            <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
+              <button 
+                onClick={() => onSetSubstituteSortKey('number')} 
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${substituteSortKey === 'number' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Number
+              </button>
+              <button 
+                onClick={() => onSetSubstituteSortKey('position')} 
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${substituteSortKey === 'position' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Position
+              </button>
+            </div>
+          </div>
           <div 
             className={`flex flex-wrap gap-3 p-3 border-2 border-dashed rounded-lg min-h-[200px] transition-colors duration-200 ${dragOverTarget === 'bench' ? 'bg-blue-50 border-blue-500' : ''}`}
             onDragOver={handleDragOver}

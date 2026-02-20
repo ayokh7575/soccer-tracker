@@ -48,8 +48,10 @@ export default function SoccerTimeTracker() {
   const [formation, setFormation] = useState('1-4-4-2');
   const [formationAssignments, setFormationAssignments] = useState<Record<string, string>>({});
   const [gameName, setGameName] = useState('');
+  const [gameDuration, setGameDuration] = useState(80);
   
   const [teamNameInput, setTeamNameInput] = useState('');
+  const [teamDefaultDuration, setTeamDefaultDuration] = useState(80);
   const [playerFirstName, setPlayerFirstName] = useState('');
   const [playerLastName, setPlayerLastName] = useState('');
   const [playerNumber, setPlayerNumber] = useState('');
@@ -67,6 +69,8 @@ export default function SoccerTimeTracker() {
 
   const [playersToSubIn, setPlayersToSubIn] = useState<string[]>([]);
   const [playersToSubOut, setPlayersToSubOut] = useState<string[]>([]);
+  const [substituteSortKey, setSubstituteSortKey] = useState<'number' | 'position'>('number');
+  const [availablePlayerSortKey, setAvailablePlayerSortKey] = useState<'number' | 'position'>('number');
 
   // Custom Hooks
   const { teams, saveTeam, deleteTeam } = useTeamStorage();
@@ -177,6 +181,12 @@ export default function SoccerTimeTracker() {
     };
   }, []);
 
+  useEffect(() => {
+    if (currentTeam) {
+      setGameDuration(currentTeam.defaultGameDuration || 80);
+    }
+  }, [currentTeam]);
+
   const handleSecondaryPositionChange = (position: string) => {
     setPlayerSecondaryPositions(prev => {
       const newSelection = prev.includes(position)
@@ -199,8 +209,9 @@ export default function SoccerTimeTracker() {
   };
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const rounded = Math.round(seconds);
+    const mins = Math.floor(rounded / 60);
+    const secs = rounded % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -214,10 +225,11 @@ export default function SoccerTimeTracker() {
   };
 
   const handleCreateTeam = () => {
-    if (teamNameInput.trim()) {
+    if (teamNameInput.trim() && teamDefaultDuration > 0) {
       const team: Team = {
         id: Date.now().toString(),
         name: teamNameInput,
+        defaultGameDuration: teamDefaultDuration,
         players: []
       };
       saveTeam(team);
@@ -277,11 +289,13 @@ export default function SoccerTimeTracker() {
         const newTeam: Team = {
           id: Date.now().toString(),
           name: teamName,
+          defaultGameDuration: teamDefaultDuration,
           players
         };
         saveTeam(newTeam);
         setCurrentTeam(newTeam);
         setTeamNameInput('');
+        setTeamDefaultDuration(80);
         setView('team-detail');
         cancelEditing();
       } else {
@@ -385,7 +399,7 @@ export default function SoccerTimeTracker() {
     });
     
     initializeGameActions(goals, redCards);
-    startGame(activePlayers, times);
+    startGame(activePlayers, times, gameDuration);
     setView('game-live');
   };
 
@@ -549,7 +563,17 @@ export default function SoccerTimeTracker() {
 
   const getSubstitutes = () => {
     const assignedPlayerIds = Object.values(formationAssignments).filter(Boolean);
-    return currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id)) || [];
+    const substitutes = currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id)) || [];
+
+    return substitutes.sort((a, b) => {
+      if (substituteSortKey === 'number') {
+        return parseInt(a.number, 10) - parseInt(b.number, 10);
+      }
+      if (substituteSortKey === 'position') {
+        return a.position.localeCompare(b.position);
+      }
+      return 0;
+    });
   };
 
   const autoAssignPlayers = () => {
@@ -591,13 +615,27 @@ export default function SoccerTimeTracker() {
     setFormationAssignments(newAssignments);
   };
 
+  const handleDurationChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: number) => void) => {
+    const val = e.target.value;
+    if (val === '') {
+      setter(0);
+      return;
+    }
+    if (/^\d+$/.test(val)) {
+      const num = parseInt(val, 10);
+      if (num >= 1 && num <= 90) {
+        setter(num);
+      }
+    }
+  };
+
   const renderPlayerStats = () => {
-    const statsMap: Record<string, { id: string; name: string; number: string; totalTime: number; gamesPlayed: number; totalGoals: number; totalRedCards: number }> = {};
+    const statsMap: Record<string, { id: string; name: string; number: string; totalTime: number; gamesPlayed: number; totalGoals: number; totalRedCards: number; avgTime: number }> = {};
 
     history.forEach(game => {
       game.playerStats.forEach(p => {
         if (!statsMap[p.id]) {
-          statsMap[p.id] = { id: p.id, name: p.name, number: p.number, totalTime: 0, gamesPlayed: 0, totalGoals: 0, totalRedCards: 0 };
+          statsMap[p.id] = { id: p.id, name: p.name, number: p.number, totalTime: 0, gamesPlayed: 0, totalGoals: 0, totalRedCards: 0, avgTime: 0 };
         }
         statsMap[p.id].totalTime += p.time;
         statsMap[p.id].totalGoals += (p.goals || 0);
@@ -606,6 +644,13 @@ export default function SoccerTimeTracker() {
           statsMap[p.id].gamesPlayed += 1;
         }
       });
+    });
+
+    // Calculate averages
+    Object.values(statsMap).forEach(stat => {
+      if (stat.gamesPlayed > 0) {
+        stat.avgTime = stat.totalTime / stat.gamesPlayed;
+      }
     });
 
     let sortedStats = Object.values(statsMap).filter(s => s.totalTime > 0);
@@ -695,6 +740,12 @@ export default function SoccerTimeTracker() {
                   </th>
                   <th 
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => requestSort('avgTime')}
+                  >
+                    <div className="flex items-center gap-1">Avg Time <SortIcon column="avgTime" /></div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => requestSort('totalTime')}
                   >
                     <div className="flex items-center gap-1">Total Time <SortIcon column="totalTime" /></div>
@@ -718,6 +769,9 @@ export default function SoccerTimeTracker() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {stat.totalRedCards}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatTime(stat.avgTime)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600 font-semibold">
                       {formatTime(stat.totalTime)}
@@ -753,9 +807,18 @@ export default function SoccerTimeTracker() {
             placeholder="Team name"
             className="flex-1 px-4 py-2 border rounded"
           />
+          <input
+            type="text"
+            value={teamDefaultDuration || ''}
+            onChange={(e) => handleDurationChange(e, setTeamDefaultDuration)}
+            placeholder="Mins"
+            className="w-24 px-4 py-2 border rounded"
+            title="Default Game Duration (1-90 mins)"
+          />
           <button 
             onClick={handleCreateTeam}
-            className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            disabled={!teamNameInput.trim() || teamDefaultDuration <= 0}
+            className={`px-6 py-2 text-white rounded ${!teamNameInput.trim() || teamDefaultDuration <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
             Create
           </button>
@@ -955,7 +1018,17 @@ export default function SoccerTimeTracker() {
     const slots = getFormationSlots();
     const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
     const assignedPlayerIds = Object.values(formationAssignments);
-    const unassignedPlayers = currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id) && !p.isUnavailable) || [];
+    const unassignedPlayers = (currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id) && !p.isUnavailable) || []).sort((a, b) => {
+      if (availablePlayerSortKey === 'number') {
+        const numA = parseInt(a.number) || 0;
+        const numB = parseInt(b.number) || 0;
+        return numA - numB;
+      }
+      if (availablePlayerSortKey === 'position') {
+        return a.position.localeCompare(b.position);
+      }
+      return 0;
+    });
 
     return (
       <div className="p-6 max-w-6xl mx-auto">
@@ -1033,7 +1106,23 @@ export default function SoccerTimeTracker() {
           </div>
 
           <div>
-            <h2 className="font-semibold mb-3">Available Players</h2>
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="font-semibold">Available Players</h2>
+              <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
+                <button 
+                  onClick={() => setAvailablePlayerSortKey('number')} 
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${availablePlayerSortKey === 'number' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  Number
+                </button>
+                <button 
+                  onClick={() => setAvailablePlayerSortKey('position')} 
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${availablePlayerSortKey === 'position' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  Position
+                </button>
+              </div>
+            </div>
             <div 
               className={`flex flex-wrap gap-3 min-h-[200px] p-3 border-2 border-dashed rounded-lg transition-colors duration-200 ${dragOverTarget === 'bench' ? 'bg-blue-50 border-blue-500' : ''}`}
               onDragOver={handleDragOver}
@@ -1064,18 +1153,33 @@ export default function SoccerTimeTracker() {
         </div>
 
         <div className="mt-6">
-          <h2 className="font-semibold mb-2">Game Name:</h2>
-          <input
-            type="text"
-            value={gameName}
-            onChange={(e) => setGameName(e.target.value)}
-            placeholder="Enter game name..."
-            className="w-full px-4 py-2 border rounded mb-4"
-          />
+          <div className="flex gap-4 mb-4">
+            <div className="flex-1">
+              <h2 className="font-semibold mb-2">Game Name:</h2>
+              <input
+                type="text"
+                value={gameName}
+                onChange={(e) => setGameName(e.target.value)}
+                placeholder="Enter game name..."
+                className="w-full px-4 py-2 border rounded"
+              />
+            </div>
+            <div className="w-32">
+              <h2 className="font-semibold mb-2">Duration:</h2>
+              <input
+                type="text"
+                value={gameDuration || ''}
+                onChange={(e) => handleDurationChange(e, setGameDuration)}
+                placeholder="Mins"
+                className="w-full px-4 py-2 border rounded"
+                title="Game Duration (1-90 mins)"
+              />
+            </div>
+          </div>
           
           <button
             onClick={handleStartGame}
-            disabled={!gameName.trim() || !getFormationSlots().every(slot => formationAssignments[slot])}
+            disabled={!gameName.trim() || !getFormationSlots().every(slot => formationAssignments[slot]) || gameDuration <= 0}
             className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             Start Game
@@ -1180,6 +1284,7 @@ export default function SoccerTimeTracker() {
         {view === 'game-live' && (
           <GameLive
             gameName={gameName}
+            gameDuration={gameDuration}
             gameTime={gameTime}
             gameState={gameState}
             actionHistory={actionHistory}
@@ -1220,6 +1325,8 @@ export default function SoccerTimeTracker() {
             getFormationSlots={getFormationSlots}
             getSubstitutes={getSubstitutes}
             formationLayouts={FORMATION_LAYOUTS}
+            substituteSortKey={substituteSortKey}
+            onSetSubstituteSortKey={setSubstituteSortKey}
           />
         )}
         {view === 'history' && renderHistory()}

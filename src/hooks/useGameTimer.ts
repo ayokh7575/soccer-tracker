@@ -10,14 +10,16 @@ export const useGameTimer = () => {
   const lastTickRef = useRef<number | null>(null);
   // Use a ref to track accumulated time synchronously to avoid stale state in intervals
   const accumulatedTimeRef = useRef(0);
+  const gameDurationRef = useRef(80);
 
-  const startGame = useCallback((initialActivePlayers: string[], initialTimes: Record<string, number>) => {
+  const startGame = useCallback((initialActivePlayers: string[], initialTimes: Record<string, number>, duration: number = 80) => {
     setGameState('playing');
     setGameTime(0);
     accumulatedTimeRef.current = 0;
     setPlayerTimes(initialTimes);
     setActivePlayerIds(initialActivePlayers);
     lastTickRef.current = Date.now();
+    gameDurationRef.current = duration;
   }, []);
 
   const togglePlayPause = useCallback(() => {
@@ -64,11 +66,14 @@ export const useGameTimer = () => {
           const currentTime = accumulatedTimeRef.current;
           const newTime = currentTime + deltaSeconds;
 
-          // Check for Half Time (40 mins = 2400 seconds)
-          if (currentTime < 2400 && newTime >= 2400) {
-            const timeToAdd = 2400 - currentTime;
-            setGameTime(2400);
-            accumulatedTimeRef.current = 2400;
+          const halfTimeSeconds = (gameDurationRef.current / 2) * 60;
+          const fullTimeSeconds = gameDurationRef.current * 60;
+
+          // Check for Half Time
+          if (currentTime < halfTimeSeconds && newTime >= halfTimeSeconds) {
+            const timeToAdd = halfTimeSeconds - currentTime;
+            setGameTime(halfTimeSeconds);
+            accumulatedTimeRef.current = halfTimeSeconds;
             setPlayerTimes(prev => {
               const next = { ...prev };
               activePlayerIds.forEach(id => { next[id] = (next[id] || 0) + timeToAdd; });
@@ -79,11 +84,11 @@ export const useGameTimer = () => {
             return;
           }
 
-          // Check for Full Time (80 mins = 4800 seconds)
-          if (currentTime < 4800 && newTime >= 4800) {
-            const timeToAdd = 4800 - currentTime;
-            setGameTime(4800);
-            accumulatedTimeRef.current = 4800;
+          // Check for Full Time
+          if (currentTime < fullTimeSeconds && newTime >= fullTimeSeconds) {
+            const timeToAdd = fullTimeSeconds - currentTime;
+            setGameTime(fullTimeSeconds);
+            accumulatedTimeRef.current = fullTimeSeconds;
             setPlayerTimes(prev => {
               const next = { ...prev };
               activePlayerIds.forEach(id => { next[id] = (next[id] || 0) + timeToAdd; });
