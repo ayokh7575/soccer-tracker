@@ -3,4 +3,4 @@
 //   echo -n 'YOUR_NEW_CODE' | shasum -a 256
 // Then replace the hash below and redeploy.
 export const ACCESS_CODE_HASH =
-  '9c3730f46d125c1ebb17afc83d424face443a060c3a558574d95d5845e495dfa';
+  '28d9ee6a570143d56c427ad1e920d15bb72bdeae4d79c3009cd83c26c26871d7';
