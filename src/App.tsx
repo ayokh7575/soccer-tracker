@@ -813,7 +813,7 @@ export default function SoccerTimeTracker() {
             value={teamDefaultDuration || ''}
             onChange={(e) => handleDurationChange(e, setTeamDefaultDuration)}
             placeholder="Mins"
-            className="w-24 px-4 py-2 border rounded"
+            className="w-20 px-4 py-2 border rounded text-center"
             title="Default Game Duration (1-90 mins)"
           />
           <button 
@@ -1165,14 +1165,14 @@ export default function SoccerTimeTracker() {
                 className="w-full px-4 py-2 border rounded"
               />
             </div>
-            <div className="w-32">
+            <div className="w-24">
               <h2 className="font-semibold mb-2">Duration:</h2>
               <input
                 type="text"
                 value={gameDuration || ''}
                 onChange={(e) => handleDurationChange(e, setGameDuration)}
                 placeholder="Mins"
-                className="w-full px-4 py-2 border rounded"
+                className="w-full px-4 py-2 border rounded text-center"
                 title="Game Duration (1-90 mins)"
               />
             </div>
