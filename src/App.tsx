@@ -258,7 +258,7 @@ export default function SoccerTimeTracker() {
         
         const parts = line.split(',').map(p => p.trim());
         if (parts.length >= 3) {
-          const [firstName, lastName, number, position = 'SUB', secondaryPositionsRaw] = parts;
+          const [firstName, lastName, number, position = 'SUB', ...secondaryParts] = parts;
           if (firstName && lastName && number) {
             players.push({
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -266,7 +266,7 @@ export default function SoccerTimeTracker() {
               lastName,
               number,
               position,
-              secondaryPositions: secondaryPositionsRaw ? secondaryPositionsRaw.split(/[,;]/).map(p => p.trim()).filter(Boolean) : [],
+              secondaryPositions: secondaryParts.flatMap(p => p.split(/[:;]/)).map(p => p.trim()).filter(Boolean),
               isUnavailable: false
             });
           }
@@ -774,7 +774,7 @@ export default function SoccerTimeTracker() {
             />
           </label>
         </div>
-        <p className="text-xs text-gray-400 mt-1 ml-1">Format: First Name, Last Name, Number, Position</p>
+        <p className="text-xs text-gray-400 mt-1 ml-1">Format: First Name, Last Name, Number, Position, Secondary Positions...</p>
       </div>
       
       <div>
