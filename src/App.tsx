@@ -16,30 +16,30 @@ const FORMATIONS = ['1-4-4-2', '1-4-3-3'];
 
 const FORMATION_LAYOUTS = {
   '1-4-4-2': {
-    GK: { x: 50, y: 90 },
-    RB: { x: 80, y: 70 },
-    CB: { x: 65, y: 75 },
-    CB2: { x: 35, y: 75 },
-    LB: { x: 20, y: 70 },
-    RM: { x: 80, y: 45 },
-    CM: { x: 65, y: 50 },
-    CM2: { x: 35, y: 50 },
-    LM: { x: 20, y: 45 },
-    CF: { x: 65, y: 20 },
-    CF2: { x: 35, y: 20 }
+    GK: { x: 50, y: 92 },
+    RB: { x: 85, y: 70 },
+    CB: { x: 62, y: 76 },
+    CB2: { x: 38, y: 76 },
+    LB: { x: 15, y: 70 },
+    RM: { x: 85, y: 45 },
+    CM: { x: 62, y: 50 },
+    CM2: { x: 38, y: 50 },
+    LM: { x: 15, y: 45 },
+    CF: { x: 62, y: 20 },
+    CF2: { x: 38, y: 20 }
   },
   '1-4-3-3': {
-    GK: { x: 50, y: 90 },
-    RB: { x: 75, y: 70 },
-    CB: { x: 60, y: 75 },
-    CB2: { x: 40, y: 75 },
-    LB: { x: 25, y: 70 },
-    DM: { x: 50, y: 55 },
-    CM: { x: 65, y: 45 },
-    CM2: { x: 35, y: 45 },
-    RW: { x: 75, y: 20 },
+    GK: { x: 50, y: 92 },
+    RB: { x: 82, y: 68 },
+    CB: { x: 62, y: 76 },
+    CB2: { x: 38, y: 76 },
+    LB: { x: 18, y: 68 },
+    DM: { x: 50, y: 56 },
+    CM: { x: 70, y: 42 },
+    CM2: { x: 30, y: 42 },
+    RW: { x: 80, y: 20 },
     CF: { x: 50, y: 15 },
-    LW: { x: 25, y: 20 }
+    LW: { x: 20, y: 20 }
   }
 };
 
@@ -1089,14 +1089,14 @@ export default function SoccerTimeTracker() {
                       <div
                         draggable
                         onDragStart={(e) => handleDragStart(e, assignedPlayer.id, slot)}
-                        className="bg-white rounded-full w-20 h-20 flex flex-col items-center justify-center shadow-lg cursor-move hover:shadow-xl"
+                        className="bg-white rounded-full w-16 h-16 sm:w-20 sm:h-20 flex flex-col items-center justify-center shadow-lg cursor-move hover:shadow-xl"
                       >
-                        <div className="font-bold">#{assignedPlayer.number}</div>
-                        <div className="text-xs text-center px-1">{getPlayerDisplayName(assignedPlayer)}</div>
-                        <div className="text-xs font-bold text-gray-700">{assignedPlayer.position}</div>
+                        <div className="text-xs sm:text-sm font-bold">#{assignedPlayer.number}</div>
+                        <div className="text-[10px] sm:text-xs text-center px-1 leading-tight">{getPlayerDisplayName(assignedPlayer)}</div>
+                        <div className="text-[10px] sm:text-xs font-bold text-gray-700">{assignedPlayer.position}</div>
                       </div>
                     ) : (
-                      <div className="bg-white bg-opacity-50 rounded-full w-20 h-20 flex flex-col items-center justify-center shadow-lg border-2 border-dashed border-white">
+                      <div className="bg-white bg-opacity-50 rounded-full w-16 h-16 sm:w-20 sm:h-20 flex flex-col items-center justify-center shadow-lg border-2 border-dashed border-white">
                         <div className="text-gray-600 text-sm font-bold">{displayName}</div>
                       </div>
                     )}

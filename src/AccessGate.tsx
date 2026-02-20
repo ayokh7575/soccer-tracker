@@ -48,7 +48,7 @@ export default function AccessGate({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-green-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
         <h1 className="text-2xl font-bold text-green-800 text-center mb-2">
-          Soccer Tracker
+          Soccer Time Tracker
         </h1>
         <p className="text-gray-500 text-center mb-6 text-sm">
           Enter the access code to continue
@@ -72,6 +72,9 @@ export default function AccessGate({ children }: { children: React.ReactNode }) 
             Enter
           </button>
         </form>
+        <p className="text-xs text-gray-400 text-center mt-4">
+          v{process.env.REACT_APP_VERSION || '0.1.0'} &copy; {new Date().getFullYear()} Alen Yokhanis
+        </p>
       </div>
     </div>
   );
