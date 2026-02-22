@@ -81,7 +81,7 @@ describe('SoccerTimeTracker Substitution Tests', () => {
       fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: firstName } });
       fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'Doe' } });
       fireEvent.change(screen.getByPlaceholderText('Number'), { target: { value: number } });
-      const positionSelect = screen.getByRole('combobox');
+      const positionSelect = screen.getByRole('combobox', { name: "Player Position" });
       fireEvent.change(positionSelect, { target: { value: position } });
       fireEvent.click(screen.getByRole('button', { name: /Add/i }));
     };
@@ -206,7 +206,7 @@ describe('SoccerTimeTracker Player Management', () => {
     fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'Doe' } });
     fireEvent.change(screen.getByPlaceholderText('Number'), { target: { value: '10' } });
     
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'CF' } });
+    fireEvent.change(screen.getByRole('combobox', { name: "Player Position" }), { target: { value: 'CF' } });
     
     const secondaryPositionButton = screen.getByLabelText('Secondary Positions');
     fireEvent.click(secondaryPositionButton);
@@ -230,7 +230,7 @@ describe('SoccerTimeTracker Player Management', () => {
     fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: 'Jane' } });
     fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'Smith' } });
     fireEvent.change(screen.getByPlaceholderText('Number'), { target: { value: '9' } });
-    const positionSelect = screen.getByRole('combobox');
+    const positionSelect = screen.getByRole('combobox', { name: "Player Position" });
     fireEvent.change(positionSelect, { target: { value: 'CF' } });
     fireEvent.click(screen.getByRole('button', { name: /Add/i }));
 
@@ -257,7 +257,7 @@ describe('SoccerTimeTracker Player Management', () => {
     fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: 'Goalie' } });
     fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'McGoal' } });
     fireEvent.change(screen.getByPlaceholderText('Number'), { target: { value: '1' } });
-    let positionSelect = screen.getByRole('combobox');
+    let positionSelect = screen.getByRole('combobox', { name: "Player Position" });
     fireEvent.change(positionSelect, { target: { value: 'GK' } });
     fireEvent.click(screen.getByRole('button', { name: /Add/i }));
 
@@ -265,7 +265,7 @@ describe('SoccerTimeTracker Player Management', () => {
     fireEvent.change(screen.getByPlaceholderText('First name'), { target: { value: 'Striker' } });
     fireEvent.change(screen.getByPlaceholderText('Last name'), { target: { value: 'McStrike' } });
     fireEvent.change(screen.getByPlaceholderText('Number'), { target: { value: '9' } });
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'RW' } });
+    fireEvent.change(screen.getByRole('combobox', { name: "Player Position" }), { target: { value: 'RW' } });
     
     const secondaryPositionButton = screen.getByLabelText('Secondary Positions');
     fireEvent.click(secondaryPositionButton);

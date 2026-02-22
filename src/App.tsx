@@ -963,6 +963,7 @@ export default function SoccerTimeTracker() {
             value={playerPosition}
             onChange={(e) => setPlayerPosition(e.target.value)}
             className="px-3 py-2 border rounded"
+            aria-label="Player Position"
           >
             <option value="">Position</option>
             {POSITIONS.map(pos => (
@@ -1048,6 +1049,7 @@ export default function SoccerTimeTracker() {
               value={playerFilterPosition}
               onChange={(e) => setPlayerFilterPosition(e.target.value)}
               className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              aria-label="Filter by Position"
             >
               <option value="">All Positions</option>
               {POSITIONS.map(pos => (
@@ -1215,6 +1217,7 @@ export default function SoccerTimeTracker() {
                 value={playerFilterPosition}
                 onChange={(e) => setPlayerFilterPosition(e.target.value)}
                 className="px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                aria-label="Filter Available Players"
               >
                 <option value="">All</option>
                 {POSITIONS.map(pos => (
