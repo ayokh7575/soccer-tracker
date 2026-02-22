@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Square, Clock, Undo2 } from 'lucide-react';
+import { Play, Pause, Square, Clock, Undo2, Search } from 'lucide-react';
 import { Player, GameAction } from './types';
 
 interface GameLiveProps {
@@ -13,6 +13,7 @@ interface GameLiveProps {
   setFormationAssignments: (assignments: Record<string, string>) => void;
   playerTimes: Record<string, number>;
   playerGoals: Record<string, number>;
+  playerYellowCards: Record<string, number>;
   playerRedCards: Record<string, number>;
   playersToSubIn: string[];
   playersToSubOut: string[];
@@ -28,6 +29,7 @@ interface GameLiveProps {
   onTogglePlayPause: () => void;
   onEndGame: () => void;
   onGoal: (playerId: string, playerName: string) => void;
+  onYellowCard: (playerId: string, playerName: string) => void;
   onRedCard: (playerId: string, playerName: string) => void;
   onFieldPlayerClick: (player: Player) => void;
   onBenchPlayerClick: (playerId: string) => void;
@@ -64,6 +66,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
   setFormationAssignments,
   playerTimes,
   playerGoals,
+  playerYellowCards,
   playerRedCards,
   playersToSubIn,
   playersToSubOut,
@@ -78,6 +81,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
   onTogglePlayPause,
   onEndGame,
   onGoal,
+  onYellowCard,
   onRedCard,
   onFieldPlayerClick,
   onBenchPlayerClick,
@@ -218,6 +222,9 @@ export const GameLive: React.FC<GameLiveProps> = ({
                       {(playerGoals[player.id] || 0) > 0 && (
                         <div className="absolute -top-2 -right-2 bg-yellow-400 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">⚽ {playerGoals[player.id]}</div>
                       )}
+                      {(playerYellowCards[player.id] || 0) > 0 && (
+                        <div className="absolute -top-2 -left-2 bg-yellow-300 text-xs font-bold rounded-sm w-4 h-5 flex items-center justify-center border border-white shadow-sm" title="Yellow Card"></div>
+                      )}
                     </div>
                   ) : (
                     <div className="bg-white bg-opacity-50 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg border-2 border-dashed border-white">
@@ -289,6 +296,8 @@ export const GameLive: React.FC<GameLiveProps> = ({
           >
             {substitutes.map(player => {
               const hasRedCard = (playerRedCards[player.id] || 0) > 0;
+              const hasOneYellow = (playerYellowCards[player.id] || 0) === 1;
+              const hasTwoYellows = (playerYellowCards[player.id] || 0) === 2;
               return (
               <div
                 key={player.id}
@@ -318,8 +327,17 @@ export const GameLive: React.FC<GameLiveProps> = ({
                 {(playerGoals[player.id] || 0) > 0 && (
                   <div className="absolute -top-2 -right-2 bg-yellow-400 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">⚽ {playerGoals[player.id]}</div>
                 )}
-                {hasRedCard && (
+                {hasOneYellow && (
+                  <div className="absolute -top-2 -left-2 bg-yellow-300 text-xs font-bold rounded-sm w-4 h-5 flex items-center justify-center border border-white shadow-sm" title="Yellow Card"></div>
+                )}
+                {hasRedCard && !hasTwoYellows && (
                   <div className="absolute -top-2 -left-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">🟥</div>
+                )}
+                {hasTwoYellows && (
+                  <div className="absolute -top-2 -left-2 flex">
+                    <div className="bg-yellow-300 w-4 h-5 border border-white shadow-sm rounded-sm transform -rotate-12 z-10" title="2nd Yellow Card"></div>
+                    <div className="bg-red-600 w-4 h-5 border border-white shadow-sm rounded-sm transform rotate-12 -ml-2"></div>
+                  </div>
                 )}
               </div>
             )})}
@@ -362,6 +380,15 @@ export const GameLive: React.FC<GameLiveProps> = ({
                 className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center justify-center gap-2"
               >
                 ⚽ Goal
+              </button>
+              <button
+                onClick={() => {
+                  onYellowCard(selectedPlayerForAction.id, selectedPlayerForAction.name);
+                  setSelectedPlayerForAction(null);
+                }}
+                className="w-full py-3 bg-yellow-400 text-black rounded-lg hover:bg-yellow-500 font-semibold flex items-center justify-center gap-2"
+              >
+                🟨 Yellow Card
               </button>
               <button
                 onClick={() => {

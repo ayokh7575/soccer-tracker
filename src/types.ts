@@ -15,4 +15,7 @@ export interface Team {
   players: Player[];
 }
 
-export type GameAction = { type: 'goal'; playerId: string } | { type: 'redCard'; playerId: string; fromSlot?: string };
+export type GameAction = 
+  | { type: 'goal'; playerId: string } 
+  | { type: 'redCard'; playerId: string; fromSlot?: string }
+  | { type: 'yellowCard'; playerId: string; resultedInRed?: boolean; fromSlot?: string };

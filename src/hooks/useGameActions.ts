@@ -16,6 +16,7 @@ export const useGameActions = ({
 }: UseGameActionsProps) => {
   const [playerGoals, setPlayerGoals] = useState<Record<string, number>>({});
   const [playerRedCards, setPlayerRedCards] = useState<Record<string, number>>({});
+  const [playerYellowCards, setPlayerYellowCards] = useState<Record<string, number>>({});
   const [actionHistory, setActionHistory] = useState<GameAction[]>([]);
 
   const getPlayerById = (id: string) => {
@@ -58,6 +59,32 @@ export const useGameActions = ({
     }
   };
 
+  const handleYellowCard = (playerId: string, playerName: string) => {
+    const currentYellows = playerYellowCards[playerId] || 0;
+
+    if (currentYellows === 1) {
+      if (window.confirm(`Second yellow card for ${playerName}. This will result in a Red Card. Proceed?`)) {
+        setPlayerYellowCards(prev => ({ ...prev, [playerId]: 2 }));
+        setPlayerRedCards(prev => ({ ...prev, [playerId]: (prev[playerId] || 0) + 1 }));
+
+        // Remove from pitch
+        const slot = Object.keys(formationAssignments).find(key => formationAssignments[key] === playerId);
+        if (slot) {
+          const newAssignments = { ...formationAssignments };
+          delete newAssignments[slot];
+          setFormationAssignments(newAssignments);
+        }
+        setActivePlayerIds(prev => prev.filter(id => id !== playerId));
+        setActionHistory(prev => [...prev, { type: 'yellowCard', playerId, resultedInRed: true, fromSlot: slot }]);
+      }
+    } else {
+      if (window.confirm(`Give Yellow Card to ${playerName}?`)) {
+        setPlayerYellowCards(prev => ({ ...prev, [playerId]: 1 }));
+        setActionHistory(prev => [...prev, { type: 'yellowCard', playerId, resultedInRed: false }]);
+      }
+    }
+  };
+
   const handleUndoAction = () => {
     if (actionHistory.length === 0) return;
     
@@ -86,21 +113,43 @@ export const useGameActions = ({
         }
         setActionHistory(prev => prev.slice(0, -1));
       }
+    } else if (lastAction.type === 'yellowCard') {
+      if (window.confirm(`Undo yellow card for ${getPlayerDisplayName(player)}?`)) {
+        setPlayerYellowCards(prev => ({
+          ...prev,
+          [lastAction.playerId]: Math.max(0, (prev[lastAction.playerId] || 0) - 1)
+        }));
+        
+        if (lastAction.resultedInRed) {
+          setPlayerRedCards(prev => ({
+            ...prev,
+            [lastAction.playerId]: Math.max(0, (prev[lastAction.playerId] || 0) - 1)
+          }));
+          if (lastAction.fromSlot && !formationAssignments[lastAction.fromSlot]) {
+            setFormationAssignments(prev => ({ ...prev, [lastAction.fromSlot!]: lastAction.playerId }));
+            setActivePlayerIds(prev => [...prev, lastAction.playerId]);
+          }
+        }
+        setActionHistory(prev => prev.slice(0, -1));
+      }
     }
   };
 
-  const initializeGameActions = (initialGoals: Record<string, number>, initialRedCards: Record<string, number>) => {
+  const initializeGameActions = (initialGoals: Record<string, number>, initialRedCards: Record<string, number>, initialYellowCards: Record<string, number>) => {
     setPlayerGoals(initialGoals);
     setPlayerRedCards(initialRedCards);
+    setPlayerYellowCards(initialYellowCards);
     setActionHistory([]);
   };
 
   return {
     playerGoals,
     playerRedCards,
+    playerYellowCards,
     actionHistory,
     handleGoal,
     handleRedCard,
+    handleYellowCard,
     handleUndoAction,
     initializeGameActions
   };

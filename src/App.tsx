@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import { useTeamStorage } from './hooks/useTeamStorage';
 import { useGameTimer } from './hooks/useGameTimer';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
@@ -16,25 +16,25 @@ const FORMATIONS = ['1-4-4-2', '1-4-3-3'];
 
 const FORMATION_LAYOUTS = {
   '1-4-4-2': {
-    GK: { x: 50, y: 92 },
-    RB: { x: 85, y: 70 },
-    CB: { x: 62, y: 76 },
-    CB2: { x: 38, y: 76 },
-    LB: { x: 15, y: 70 },
-    RM: { x: 85, y: 45 },
-    CM: { x: 62, y: 50 },
-    CM2: { x: 38, y: 50 },
-    LM: { x: 15, y: 45 },
-    CF: { x: 62, y: 20 },
-    CF2: { x: 38, y: 20 }
+    GK: { x: 50, y: 87 },
+    RB: { x: 85, y: 60 },
+    CB: { x: 62, y: 66 },
+    CB2: { x: 38, y: 66 },
+    LB: { x: 15, y: 60 },
+    RM: { x: 85, y: 35 },
+    CM: { x: 62, y: 40 },
+    CM2: { x: 38, y: 40 },
+    LM: { x: 15, y: 35 },
+    CF: { x: 62, y: 15 },
+    CF2: { x: 38, y: 15 }
   },
   '1-4-3-3': {
-    GK: { x: 50, y: 92 },
-    RB: { x: 82, y: 68 },
-    CB: { x: 62, y: 76 },
-    CB2: { x: 38, y: 76 },
-    LB: { x: 18, y: 68 },
-    DM: { x: 50, y: 56 },
+    GK: { x: 50, y: 87 },
+    RB: { x: 82, y: 60 },
+    CB: { x: 62, y: 66 },
+    CB2: { x: 38, y: 66 },
+    LB: { x: 18, y: 60 },
+    DM: { x: 50, y: 49 },
     CM: { x: 70, y: 42 },
     CM2: { x: 30, y: 42 },
     RW: { x: 80, y: 20 },
@@ -72,6 +72,9 @@ export default function SoccerTimeTracker() {
   const [playersToSubOut, setPlayersToSubOut] = useState<string[]>([]);
   const [substituteSortKey, setSubstituteSortKey] = useState<'number' | 'position'>('number');
   const [availablePlayerSortKey, setAvailablePlayerSortKey] = useState<'number' | 'position'>('number');
+  const [playerSearchQuery, setPlayerSearchQuery] = useState('');
+  const [substituteSearchQuery, setSubstituteSearchQuery] = useState('');
+  const [playerFilterPosition, setPlayerFilterPosition] = useState('');
 
   // Custom Hooks
   const { teams, saveTeam, deleteTeam } = useTeamStorage();
@@ -91,9 +94,11 @@ export default function SoccerTimeTracker() {
   const {
     playerGoals,
     playerRedCards,
+    playerYellowCards,
     actionHistory,
     handleGoal,
     handleRedCard,
+    handleYellowCard,
     handleUndoAction,
     initializeGameActions
   } = useGameActions({
@@ -223,6 +228,18 @@ export default function SoccerTimeTracker() {
     setPlayerNumber('');
     setPlayerPosition('');
     setPlayerSecondaryPositions([]);
+    setPlayerSearchQuery('');
+    setPlayerFilterPosition('');
+  };
+
+  const getFilteredPlayers = () => {
+    if (!currentTeam) return [];
+    const query = playerSearchQuery.toLowerCase();
+    return currentTeam.players.filter(p => {
+      const matchesSearch = p.firstName.toLowerCase().includes(query) || p.lastName.toLowerCase().includes(query) || p.number.includes(query);
+      const matchesPosition = playerFilterPosition ? p.position === playerFilterPosition : true;
+      return matchesSearch && matchesPosition;
+    });
   };
 
   const handleCreateTeam = () => {
@@ -391,15 +408,17 @@ export default function SoccerTimeTracker() {
     const times: Record<string, number> = {};
     const goals: Record<string, number> = {};
     const redCards: Record<string, number> = {};
+    const yellowCards: Record<string, number> = {};
     const activePlayers = Object.values(formationAssignments).filter(Boolean);
     
     currentTeam?.players.forEach(p => {
       times[p.id] = 0;
       goals[p.id] = 0;
       redCards[p.id] = 0;
+      yellowCards[p.id] = 0;
     });
     
-    initializeGameActions(goals, redCards);
+    initializeGameActions(goals, redCards, yellowCards);
     startGame(activePlayers, times, gameDuration);
     setView('game-live');
   };
@@ -478,7 +497,8 @@ export default function SoccerTimeTracker() {
           number: p.number,
           time: playerTimes[p.id] || 0,
           goals: playerGoals[p.id] || 0,
-          redCards: playerRedCards[p.id] || 0
+          redCards: playerRedCards[p.id] || 0,
+          yellowCards: playerYellowCards[p.id] || 0
         }));
 
         saveGame({
@@ -515,7 +535,7 @@ export default function SoccerTimeTracker() {
   const exportHistoryToCSV = (data = history) => {
     if (data.length === 0) return;
 
-    const headers = ['Date', 'Game Name', 'Team Name', 'Total Game Time', 'Player Name', 'Player Number', 'Player Time', 'Goals', 'Red Cards'];
+    const headers = ['Date', 'Game Name', 'Team Name', 'Total Game Time', 'Player Name', 'Player Number', 'Player Time', 'Goals', 'Red Cards', 'Yellow Cards'];
     const rows = data.flatMap(game => 
       game.playerStats.map(stat => [
         new Date(game.date).toLocaleDateString(),
@@ -526,7 +546,8 @@ export default function SoccerTimeTracker() {
         stat.number,
         formatTime(stat.time),
         stat.goals || 0,
-        stat.redCards || 0
+        stat.redCards || 0,
+        stat.yellowCards || 0
       ])
     );
 
@@ -566,7 +587,12 @@ export default function SoccerTimeTracker() {
     const assignedPlayerIds = Object.values(formationAssignments).filter(Boolean);
     const substitutes = currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id)) || [];
 
-    return substitutes.sort((a, b) => {
+    const filteredSubstitutes = substitutes.filter(p => 
+      p.firstName.toLowerCase().includes(substituteSearchQuery.toLowerCase()) || 
+      p.lastName.toLowerCase().includes(substituteSearchQuery.toLowerCase()) || 
+      p.number.includes(substituteSearchQuery));
+
+    return filteredSubstitutes.sort((a, b) => {
       if (substituteSortKey === 'number') {
         return parseInt(a.number, 10) - parseInt(b.number, 10);
       }
@@ -631,16 +657,17 @@ export default function SoccerTimeTracker() {
   };
 
   const renderPlayerStats = () => {
-    const statsMap: Record<string, { id: string; name: string; number: string; totalTime: number; gamesPlayed: number; totalGoals: number; totalRedCards: number; avgTime: number }> = {};
+    const statsMap: Record<string, { id: string; name: string; number: string; totalTime: number; gamesPlayed: number; totalGoals: number; totalRedCards: number; totalYellowCards: number; avgTime: number }> = {};
 
     history.forEach(game => {
       game.playerStats.forEach(p => {
         if (!statsMap[p.id]) {
-          statsMap[p.id] = { id: p.id, name: p.name, number: p.number, totalTime: 0, gamesPlayed: 0, totalGoals: 0, totalRedCards: 0, avgTime: 0 };
+          statsMap[p.id] = { id: p.id, name: p.name, number: p.number, totalTime: 0, gamesPlayed: 0, totalGoals: 0, totalRedCards: 0, totalYellowCards: 0, avgTime: 0 };
         }
         statsMap[p.id].totalTime += p.time;
         statsMap[p.id].totalGoals += (p.goals || 0);
         statsMap[p.id].totalRedCards += (p.redCards || 0);
+        statsMap[p.id].totalYellowCards += (p.yellowCards || 0);
         if (p.time > 0) {
           statsMap[p.id].gamesPlayed += 1;
         }
@@ -735,6 +762,12 @@ export default function SoccerTimeTracker() {
                   </th>
                   <th 
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => requestSort('totalYellowCards')}
+                  >
+                    <div className="flex items-center gap-1">Yellow Cards <SortIcon column="totalYellowCards" /></div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => requestSort('totalRedCards')}
                   >
                     <div className="flex items-center gap-1">Red Cards <SortIcon column="totalRedCards" /></div>
@@ -767,6 +800,9 @@ export default function SoccerTimeTracker() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {stat.totalGoals}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {stat.totalYellowCards}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {stat.totalRedCards}
@@ -993,13 +1029,44 @@ export default function SoccerTimeTracker() {
             </button>
           )}
         </div>
+        
+        {currentTeam.players.length > 0 && (
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={16} className="text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={playerSearchQuery}
+                onChange={(e) => setPlayerSearchQuery(e.target.value)}
+                placeholder="Search players by name or number..."
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <select
+              value={playerFilterPosition}
+              onChange={(e) => setPlayerFilterPosition(e.target.value)}
+              className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">All Positions</option>
+              {POSITIONS.map(pos => (
+                <option key={pos} value={pos}>{pos}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {currentTeam.players.length === 0 ? (
           <p className="text-gray-500">No players yet. Add some above!</p>
         ) : (
           <div className="space-y-2">
-            {currentTeam.players.map(player => (
+            {getFilteredPlayers().map(player => (
               <PlayerRow key={player.id} player={player} onRemove={removePlayer} onEdit={startEditing} onToggleAvailability={togglePlayerAvailability} />
             ))}
+            {getFilteredPlayers().length === 0 && (
+              <p className="text-gray-500 text-center py-4">No players found matching "{playerSearchQuery}"</p>
+            )}
           </div>
         )}
       </div>
@@ -1019,7 +1086,14 @@ export default function SoccerTimeTracker() {
     const slots = getFormationSlots();
     const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
     const assignedPlayerIds = Object.values(formationAssignments);
-    const unassignedPlayers = (currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id) && !p.isUnavailable) || []).sort((a, b) => {
+    const unassignedPlayers = (currentTeam?.players.filter(p => 
+      !assignedPlayerIds.includes(p.id) && 
+      !p.isUnavailable &&
+      (p.firstName.toLowerCase().includes(substituteSearchQuery.toLowerCase()) || 
+       p.lastName.toLowerCase().includes(substituteSearchQuery.toLowerCase()) || 
+       p.number.includes(substituteSearchQuery)) &&
+      (playerFilterPosition ? p.position === playerFilterPosition : true)
+    ) || []).sort((a, b) => {
       if (availablePlayerSortKey === 'number') {
         const numA = parseInt(a.number) || 0;
         const numB = parseInt(b.number) || 0;
@@ -1123,6 +1197,30 @@ export default function SoccerTimeTracker() {
                   Position
                 </button>
               </div>
+            </div>
+            <div className="flex gap-2 mb-3">
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search size={14} className="text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={substituteSearchQuery}
+                  onChange={(e) => setSubstituteSearchQuery(e.target.value)}
+                  placeholder="Search available players..."
+                  className="w-full pl-9 pr-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <select
+                value={playerFilterPosition}
+                onChange={(e) => setPlayerFilterPosition(e.target.value)}
+                className="px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All</option>
+                {POSITIONS.map(pos => (
+                  <option key={pos} value={pos}>{pos}</option>
+                ))}
+              </select>
             </div>
             <div 
               className={`flex flex-wrap gap-3 min-h-[200px] p-3 border-2 border-dashed rounded-lg transition-colors duration-200 ${dragOverTarget === 'bench' ? 'bg-blue-50 border-blue-500' : ''}`}
@@ -1255,15 +1353,28 @@ export default function SoccerTimeTracker() {
                     {game.playerStats.map(stat => (
                       <div key={stat.id} className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm">
                         <span className="truncate mr-2">#{stat.number} {stat.name}</span>
-                        <span className={`font-mono ${stat.time > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
-                          {formatTime(stat.time)}
-                        </span>
-                        {stat.goals > 0 && (
-                          <span className="ml-2 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">⚽ {stat.goals}</span>
-                        )}
-                        {(stat.redCards || 0) > 0 && (
-                          <span className="ml-2 bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">🟥 {stat.redCards}</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <span className={`font-mono ${stat.time > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+                            {formatTime(stat.time)}
+                          </span>
+                          {stat.goals > 0 && (
+                            <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">⚽ {stat.goals}</span>
+                          )}
+                          {/* Show yellow cards if they exist and didn't result in the red card shown */}
+                          {(stat.yellowCards || 0) > 0 && !((stat.redCards || 0) > 0 && (stat.yellowCards || 0) === 2) && (
+                              <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">🟨</span>
+                          )}
+                          {/* Show red card */}
+                          {(stat.redCards || 0) > 0 && ((stat.yellowCards || 0) === 2 ? (
+                              <span className="flex flex-col gap-0.5" title="2nd Yellow Card">
+                                <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-1.5 py-0.5 rounded-full">🟨</span>
+                                <span className="bg-red-100 text-red-800 text-xs font-bold px-1.5 py-0.5 rounded-full">🟥</span>
+                              </span>
+                            ) : (
+                              <span className="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">🟥</span>
+                            )
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1295,6 +1406,7 @@ export default function SoccerTimeTracker() {
             setFormationAssignments={setFormationAssignments}
             playerTimes={playerTimes}
             playerGoals={playerGoals}
+            playerYellowCards={playerYellowCards}
             playerRedCards={playerRedCards}
             playersToSubIn={playersToSubIn}
             playersToSubOut={playersToSubOut}
@@ -1309,6 +1421,7 @@ export default function SoccerTimeTracker() {
             onTogglePlayPause={togglePlayPause}
             onEndGame={handleEndGame}
             onGoal={handleGoal}
+            onYellowCard={handleYellowCard}
             onRedCard={handleRedCard}
             onFieldPlayerClick={handleFieldPlayerClick}
             onBenchPlayerClick={handleBenchPlayerClick}

@@ -7,6 +7,7 @@ export interface PlayerStat {
   time: number;
   goals: number;
   redCards: number;
+  yellowCards: number;
 }
 
 export interface GameRecord {
