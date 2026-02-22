@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Square, Clock, Undo2, Search } from 'lucide-react';
+import { Play, Pause, Square, Clock, Undo2 } from 'lucide-react';
 import { Player, GameAction } from './types';
 
 interface GameLiveProps {
@@ -13,6 +13,7 @@ interface GameLiveProps {
   setFormationAssignments: (assignments: Record<string, string>) => void;
   playerTimes: Record<string, number>;
   playerGoals: Record<string, number>;
+  opponentGoals: number;
   playerYellowCards: Record<string, number>;
   playerRedCards: Record<string, number>;
   playersToSubIn: string[];
@@ -29,6 +30,7 @@ interface GameLiveProps {
   onTogglePlayPause: () => void;
   onEndGame: () => void;
   onGoal: (playerId: string, playerName: string) => void;
+  onOpponentGoal: () => void;
   onYellowCard: (playerId: string, playerName: string) => void;
   onRedCard: (playerId: string, playerName: string) => void;
   onFieldPlayerClick: (player: Player) => void;
@@ -66,6 +68,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
   setFormationAssignments,
   playerTimes,
   playerGoals,
+  opponentGoals,
   playerYellowCards,
   playerRedCards,
   playersToSubIn,
@@ -81,6 +84,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
   onTogglePlayPause,
   onEndGame,
   onGoal,
+  onOpponentGoal,
   onYellowCard,
   onRedCard,
   onFieldPlayerClick,
@@ -108,11 +112,13 @@ export const GameLive: React.FC<GameLiveProps> = ({
   const substitutes = getSubstitutes();
   const halfTimeSeconds = (gameDuration / 2) * 60;
   const fullTimeSeconds = gameDuration * 60;
+  const teamScore = Object.values(playerGoals).reduce((a, b) => a + b, 0);
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{gameName}</h1>
+        <h1 className="text-2xl font-bold truncate max-w-[30%]">{gameName}</h1>
+        <div className="text-3xl font-bold bg-gray-800 text-white px-6 py-2 rounded-lg shadow-md">{teamScore} - {opponentGoals}</div>
         <div className="flex items-center gap-4">
           <div className="text-2xl font-bold flex items-center gap-2" data-testid="game-timer">
             <Clock size={24} />
@@ -122,6 +128,12 @@ export const GameLive: React.FC<GameLiveProps> = ({
           <div className="flex gap-2">
             {gameState !== 'finished' && (
               <>
+                <button
+                  onClick={onOpponentGoal}
+                  className="px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm font-semibold"
+                >
+                  Opp. Goal
+                </button>
                 {actionHistory.length > 0 && (
                   <button
                     onClick={onUndoAction}

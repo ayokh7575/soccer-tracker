@@ -15,6 +15,8 @@ export interface GameRecord {
   date: string;
   name: string;
   teamName: string;
+  teamScore: number;
+  opponentScore: number;
   totalTime: number;
   playerStats: PlayerStat[];
 }

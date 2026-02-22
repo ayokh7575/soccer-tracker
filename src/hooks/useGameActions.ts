@@ -17,6 +17,7 @@ export const useGameActions = ({
   const [playerGoals, setPlayerGoals] = useState<Record<string, number>>({});
   const [playerRedCards, setPlayerRedCards] = useState<Record<string, number>>({});
   const [playerYellowCards, setPlayerYellowCards] = useState<Record<string, number>>({});
+  const [opponentGoals, setOpponentGoals] = useState(0);
   const [actionHistory, setActionHistory] = useState<GameAction[]>([]);
 
   const getPlayerById = (id: string) => {
@@ -36,6 +37,13 @@ export const useGameActions = ({
         [playerId]: (prev[playerId] || 0) + 1
       }));
       setActionHistory(prev => [...prev, { type: 'goal', playerId }]);
+    }
+  };
+
+  const handleOpponentGoal = () => {
+    if (window.confirm("Goal scored by Opponent?")) {
+      setOpponentGoals(prev => prev + 1);
+      setActionHistory(prev => [...prev, { type: 'opponentGoal' }]);
     }
   };
 
@@ -89,6 +97,15 @@ export const useGameActions = ({
     if (actionHistory.length === 0) return;
     
     const lastAction = actionHistory[actionHistory.length - 1];
+
+    if (lastAction.type === 'opponentGoal') {
+      if (window.confirm("Undo last opponent goal?")) {
+        setOpponentGoals(prev => Math.max(0, prev - 1));
+        setActionHistory(prev => prev.slice(0, -1));
+      }
+      return;
+    }
+
     const player = getPlayerById(lastAction.playerId);
     
     if (!player) return;
@@ -139,6 +156,7 @@ export const useGameActions = ({
     setPlayerGoals(initialGoals);
     setPlayerRedCards(initialRedCards);
     setPlayerYellowCards(initialYellowCards);
+    setOpponentGoals(0);
     setActionHistory([]);
   };
 
@@ -146,8 +164,10 @@ export const useGameActions = ({
     playerGoals,
     playerRedCards,
     playerYellowCards,
+    opponentGoals,
     actionHistory,
     handleGoal,
+    handleOpponentGoal,
     handleRedCard,
     handleYellowCard,
     handleUndoAction,

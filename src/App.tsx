@@ -95,8 +95,10 @@ export default function SoccerTimeTracker() {
     playerGoals,
     playerRedCards,
     playerYellowCards,
+    opponentGoals,
     actionHistory,
     handleGoal,
+    handleOpponentGoal,
     handleRedCard,
     handleYellowCard,
     handleUndoAction,
@@ -506,6 +508,8 @@ export default function SoccerTimeTracker() {
           date: new Date().toISOString(),
           name: gameName,
           teamName: currentTeam.name,
+          teamScore: Object.values(playerGoals).reduce((a, b) => a + b, 0),
+          opponentScore: opponentGoals,
           totalTime: gameTime,
           playerStats
         });
@@ -535,12 +539,13 @@ export default function SoccerTimeTracker() {
   const exportHistoryToCSV = (data = history) => {
     if (data.length === 0) return;
 
-    const headers = ['Date', 'Game Name', 'Team Name', 'Total Game Time', 'Player Name', 'Player Number', 'Player Time', 'Goals', 'Red Cards', 'Yellow Cards'];
+    const headers = ['Date', 'Game Name', 'Team Name', 'Score', 'Total Game Time', 'Player Name', 'Player Number', 'Player Time', 'Goals', 'Red Cards', 'Yellow Cards'];
     const rows = data.flatMap(game => 
       game.playerStats.map(stat => [
         new Date(game.date).toLocaleDateString(),
         game.name,
         game.teamName,
+        `${game.teamScore}-${game.opponentScore}`,
         formatTime(game.totalTime),
         stat.name,
         stat.number,
@@ -1332,6 +1337,9 @@ export default function SoccerTimeTracker() {
                     <p className="text-sm text-gray-600">
                       {new Date(game.date).toLocaleDateString()} • {game.teamName}
                     </p>
+                    <p className="text-lg font-bold mt-1">
+                      Score: {game.teamScore} - {game.opponentScore}
+                    </p>
                   </div>
                   <div className="text-right">
                     <div className="font-mono font-bold text-xl text-blue-600">
@@ -1409,6 +1417,7 @@ export default function SoccerTimeTracker() {
             setFormationAssignments={setFormationAssignments}
             playerTimes={playerTimes}
             playerGoals={playerGoals}
+            opponentGoals={opponentGoals}
             playerYellowCards={playerYellowCards}
             playerRedCards={playerRedCards}
             playersToSubIn={playersToSubIn}
@@ -1424,6 +1433,7 @@ export default function SoccerTimeTracker() {
             onTogglePlayPause={togglePlayPause}
             onEndGame={handleEndGame}
             onGoal={handleGoal}
+            onOpponentGoal={handleOpponentGoal}
             onYellowCard={handleYellowCard}
             onRedCard={handleRedCard}
             onFieldPlayerClick={handleFieldPlayerClick}
