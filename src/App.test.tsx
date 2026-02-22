@@ -7,6 +7,10 @@ import { ACCESS_CODE_HASH } from './accessConfig';
 window.confirm = jest.fn(() => true);
 window.alert = jest.fn();
 
+jest.mock('./UserManual', () => ({
+  UserManual: () => <div>User Manual Mock</div>
+}));
+
 // Mock localStorage
 const localStorageMock = (function() {
   let store: Record<string, string> = {};
