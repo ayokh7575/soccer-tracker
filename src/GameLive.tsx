@@ -178,7 +178,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-2">
           <h2 className="font-semibold mb-3">Playing XI - Drag to substitute</h2>
-          <div className="relative bg-green-600 rounded-lg" style={{ height: '600px' }}>
+          <div className="relative bg-green-600 rounded-lg" style={{ height: '500px' }}>
             {slots.map(slot => {
               const pos = layout[slot];
               const playerId = formationAssignments[slot];

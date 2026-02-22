@@ -62,6 +62,7 @@ export default function SoccerTimeTracker() {
   const [selectedPlayerForAction, setSelectedPlayerForAction] = useState<{id: string, name: string} | null>(null);
   const [isSecondaryPositionDropdownOpen, setIsSecondaryPositionDropdownOpen] = useState(false);
   const secondaryPositionRef = useRef<HTMLDivElement>(null);
+  const addPlayerSectionRef = useRef<HTMLDivElement>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'totalTime', direction: 'desc' });
   const version = process.env.REACT_APP_VERSION || '0.1.0';
   const isDragging = useRef(false);
@@ -355,6 +356,7 @@ export default function SoccerTimeTracker() {
     setPlayerNumber(player.number);
     setPlayerPosition(player.position);
     setPlayerSecondaryPositions(player.secondaryPositions || []);
+    addPlayerSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleUpdatePlayer = () => {
@@ -938,7 +940,7 @@ export default function SoccerTimeTracker() {
       
       <h1 className="text-3xl font-bold mb-6">{currentTeam.name}</h1>
 
-      <div className="mb-6">
+      <div className="mb-6" ref={addPlayerSectionRef}>
         <h2 className="text-xl font-semibold mb-3">Add Player</h2>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
           <input
@@ -1147,7 +1149,7 @@ export default function SoccerTimeTracker() {
         <div className="grid md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
             <h2 className="font-semibold mb-3">Formation Positions</h2>
-            <div className="relative bg-green-600 rounded-lg" style={{ height: '600px' }}>
+            <div className="relative bg-green-600 rounded-lg" style={{ height: '400px' }}>
               {slots.map(slot => {
                 const pos = layout[slot];
                 const assignedPlayer = getPlayerById(formationAssignments[slot]);
