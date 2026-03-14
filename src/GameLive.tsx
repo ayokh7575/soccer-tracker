@@ -116,41 +116,18 @@ export const GameLive: React.FC<GameLiveProps> = ({
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold truncate max-w-[30%]">{gameName}</h1>
-        <div className="text-3xl font-bold bg-gray-800 text-white px-6 py-2 rounded-lg shadow-md">{teamScore} - {opponentGoals}</div>
-        <div className="flex items-center gap-4">
-          <div className="text-2xl font-bold flex items-center gap-2" data-testid="game-timer">
-            <Clock size={24} />
-            {formatTime(gameTime)}
-            {gameTime >= halfTimeSeconds && gameTime < fullTimeSeconds && <span className="text-sm">(2nd Half)</span>}
-          </div>
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-xl font-bold truncate max-w-[60%]">{gameName}</h1>
           <div className="flex gap-2">
             {gameState !== 'finished' && (
-              <>
-                <button
-                  onClick={onOpponentGoal}
-                  className="px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm font-semibold"
-                >
-                  Opp. Goal
-                </button>
-                {actionHistory.length > 0 && (
-                  <button
-                    onClick={onUndoAction}
-                    aria-label="Undo Last Action"
-                    className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                  >
-                    <Undo2 size={18} />
-                  </button>
-                )}
-                <button
-                  onClick={onTogglePlayPause}
-                  aria-label="Toggle Timer"
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  {gameState === 'playing' ? <Pause size={18} /> : <Play size={18} />}
-                </button>
-              </>
+              <button
+                onClick={onTogglePlayPause}
+                aria-label="Toggle Timer"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                {gameState === 'playing' ? <Pause size={18} /> : <Play size={18} />}
+              </button>
             )}
             <button
               onClick={onEndGame}
@@ -160,6 +137,33 @@ export const GameLive: React.FC<GameLiveProps> = ({
               <Square size={18} />
             </button>
           </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="text-xl font-bold flex items-center gap-1" data-testid="game-timer">
+            <Clock size={20} />
+            {formatTime(gameTime)}
+            {gameTime >= halfTimeSeconds && gameTime < fullTimeSeconds && <span className="text-xs">(2nd)</span>}
+          </div>
+          <div className="text-3xl font-bold bg-gray-800 text-white px-4 py-2 rounded-lg shadow-md">{teamScore} - {opponentGoals}</div>
+          {gameState !== 'finished' ? (
+            <div className="flex gap-2">
+              <button
+                onClick={onOpponentGoal}
+                className="px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm font-semibold"
+              >
+                Opp. Goal
+              </button>
+              {actionHistory.length > 0 && (
+                <button
+                  onClick={onUndoAction}
+                  aria-label="Undo Last Action"
+                  className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                >
+                  <Undo2 size={18} />
+                </button>
+              )}
+            </div>
+          ) : <div />}
         </div>
       </div>
 
@@ -224,7 +228,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
                         isDragging.current = false;
                         setDraggedPlayerId(null);
                       }}
-                      className={`bg-white rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-pointer hover:shadow-xl ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${playersToSubOut.includes(player.id) ? 'ring-4 ring-red-500' : ''}`}
+                      className={`bg-white rounded-full w-20 h-20 flex flex-col items-center justify-center shadow-lg cursor-pointer hover:shadow-xl ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${playersToSubOut.includes(player.id) ? 'ring-4 ring-red-500' : ''}`}
                     >
                       <div className="font-bold text-lg">#{player.number}</div>
                       <div className="text-xs text-center px-1">{getPlayerDisplayName(player)}</div>
@@ -232,14 +236,14 @@ export const GameLive: React.FC<GameLiveProps> = ({
                         {formatTime(playerTimes[player.id] || 0)}
                       </div>
                       {(playerGoals[player.id] || 0) > 0 && (
-                        <div className="absolute -top-2 -right-2 bg-yellow-400 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">⚽ {playerGoals[player.id]}</div>
+                        <div className="absolute -top-3 right-1 bg-yellow-400 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">⚽ {playerGoals[player.id]}</div>
                       )}
                       {(playerYellowCards[player.id] || 0) > 0 && (
-                        <div className="absolute -top-2 -left-2 bg-yellow-300 text-xs font-bold rounded-sm w-4 h-5 flex items-center justify-center border border-white shadow-sm" title="Yellow Card"></div>
+                        <div className="absolute -top-3 left-1 bg-yellow-300 text-xs font-bold rounded-sm w-4 h-5 flex items-center justify-center border border-white shadow-sm" title="Yellow Card"></div>
                       )}
                     </div>
                   ) : (
-                    <div className="bg-white bg-opacity-50 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg border-2 border-dashed border-white">
+                    <div className="bg-white bg-opacity-50 rounded-full w-20 h-20 flex flex-col items-center justify-center shadow-lg border-2 border-dashed border-white">
                       <div className="text-gray-600 text-sm font-bold">{displayName}</div>
                     </div>
                   )}
@@ -337,16 +341,16 @@ export const GameLive: React.FC<GameLiveProps> = ({
                   {formatTime(playerTimes[player.id] || 0)}
                 </div>
                 {(playerGoals[player.id] || 0) > 0 && (
-                  <div className="absolute -top-2 -right-2 bg-yellow-400 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">⚽ {playerGoals[player.id]}</div>
+                  <div className="absolute -top-3 right-1 bg-yellow-400 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">⚽ {playerGoals[player.id]}</div>
                 )}
                 {hasOneYellow && (
-                  <div className="absolute -top-2 -left-2 bg-yellow-300 text-xs font-bold rounded-sm w-4 h-5 flex items-center justify-center border border-white shadow-sm" title="Yellow Card"></div>
+                  <div className="absolute -top-3 left-1 bg-yellow-300 text-xs font-bold rounded-sm w-4 h-5 flex items-center justify-center border border-white shadow-sm" title="Yellow Card"></div>
                 )}
                 {hasRedCard && !hasTwoYellows && (
-                  <div className="absolute -top-2 -left-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">🟥</div>
+                  <div className="absolute -top-3 left-1 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center border border-white shadow-sm">🟥</div>
                 )}
                 {hasTwoYellows && (
-                  <div className="absolute -top-2 -left-2 flex">
+                  <div className="absolute -top-3 left-1 flex">
                     <div className="bg-yellow-300 w-4 h-5 border border-white shadow-sm rounded-sm transform -rotate-12 z-10" title="2nd Yellow Card"></div>
                     <div className="bg-red-600 w-4 h-5 border border-white shadow-sm rounded-sm transform rotate-12 -ml-2"></div>
                   </div>
