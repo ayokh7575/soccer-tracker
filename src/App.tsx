@@ -17,7 +17,7 @@ const FORMATIONS = ['1-4-4-2', '1-4-3-3'];
 
 const FORMATION_LAYOUTS = {
   '1-4-4-2': {
-    GK:  { x: 50, y: 90 },
+    GK:  { x: 50, y: 88 },
     RB:  { x: 85, y: 65 },
     CB:  { x: 65, y: 75 },
     CB2: { x: 35, y: 75 },
@@ -30,7 +30,7 @@ const FORMATION_LAYOUTS = {
     CF2: { x: 35, y: 15 }
   },
   '1-4-3-3': {
-    GK:  { x: 50, y: 90 },
+    GK:  { x: 50, y: 88 },
     RB:  { x: 88, y: 65 },
     CB:  { x: 68, y: 75 },
     CB2: { x: 32, y: 75 },
