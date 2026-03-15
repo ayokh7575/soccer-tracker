@@ -60,6 +60,7 @@ export default function SoccerTimeTracker() {
   const [playerPosition, setPlayerPosition] = useState('');
   const [playerSecondaryPositions, setPlayerSecondaryPositions] = useState<string[]>([]);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [isBorrowedPlayer, setIsBorrowedPlayer] = useState(false);
   const [selectedPlayerForAction, setSelectedPlayerForAction] = useState<{id: string, name: string} | null>(null);
   const [isSecondaryPositionDropdownOpen, setIsSecondaryPositionDropdownOpen] = useState(false);
   const secondaryPositionRef = useRef<HTMLDivElement>(null);
@@ -80,7 +81,7 @@ export default function SoccerTimeTracker() {
 
   // Custom Hooks
   const { teams, saveTeam, deleteTeam } = useTeamStorage();
-  const { history, saveGame, deleteGame: deleteGameHistory } = useGameHistory();
+  const { history, saveGame, deleteGame: deleteGameHistory, importGames } = useGameHistory();
   
   const { 
     gameState, 
@@ -234,6 +235,7 @@ export default function SoccerTimeTracker() {
     setPlayerSecondaryPositions([]);
     setPlayerSearchQuery('');
     setPlayerFilterPosition('');
+    setIsBorrowedPlayer(false);
   };
 
   const getFilteredPlayers = () => {
@@ -337,7 +339,8 @@ export default function SoccerTimeTracker() {
         number: playerNumber,
         position: playerPosition,
         secondaryPositions: playerSecondaryPositions,
-        isUnavailable: false
+        isUnavailable: false,
+        isBorrowed: isBorrowedPlayer || undefined
       };
       const updated = { ...currentTeam, players: [...currentTeam.players, player] };
       setCurrentTeam(updated);
@@ -347,6 +350,7 @@ export default function SoccerTimeTracker() {
       setPlayerNumber('');
       setPlayerPosition('');
       setPlayerSecondaryPositions([]);
+      setIsBorrowedPlayer(false);
     }
   };
 
@@ -357,14 +361,15 @@ export default function SoccerTimeTracker() {
     setPlayerNumber(player.number);
     setPlayerPosition(player.position);
     setPlayerSecondaryPositions(player.secondaryPositions || []);
+    setIsBorrowedPlayer(player.isBorrowed ?? false);
     addPlayerSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleUpdatePlayer = () => {
     if (currentTeam && editingPlayerId && playerFirstName && playerLastName && playerNumber && playerPosition) {
-      const updatedPlayers = currentTeam.players.map(p => 
-        p.id === editingPlayerId 
-          ? { ...p, firstName: playerFirstName, lastName: playerLastName, number: playerNumber, position: playerPosition, secondaryPositions: playerSecondaryPositions }
+      const updatedPlayers = currentTeam.players.map(p =>
+        p.id === editingPlayerId
+          ? { ...p, firstName: playerFirstName, lastName: playerLastName, number: playerNumber, position: playerPosition, secondaryPositions: playerSecondaryPositions, isBorrowed: isBorrowedPlayer || undefined }
           : p
       );
       const updatedTeam = { ...currentTeam, players: updatedPlayers };
@@ -517,22 +522,26 @@ export default function SoccerTimeTracker() {
           playerStats
         });
 
-        // Mark red carded players as unavailable in the team
+        // Mark red carded players as unavailable, and remove borrowed players
         const redCardedPlayerIds = Object.keys(playerRedCards).filter(id => playerRedCards[id] > 0);
-        if (redCardedPlayerIds.length > 0) {
-          const updatedPlayers = currentTeam.players.map(p => 
-            redCardedPlayerIds.includes(p.id) ? { ...p, isUnavailable: true } : p
-          );
-          const updatedTeam = { ...currentTeam, players: updatedPlayers };
-          setCurrentTeam(updatedTeam);
-          saveTeam(updatedTeam);
-        }
-        
+        const updatedPlayers = currentTeam.players
+          .filter(p => !p.isBorrowed)
+          .map(p => redCardedPlayerIds.includes(p.id) ? { ...p, isUnavailable: true } : p);
+        const updatedTeam = { ...currentTeam, players: updatedPlayers };
+        setCurrentTeam(updatedTeam);
+        saveTeam(updatedTeam);
+
         cancelGame();
         setGameName('');
         setView('history');
         return;
       }
+    }
+    // Even if not saving, remove borrowed players if a game was played
+    if (gameTime > 0 && currentTeam) {
+      const updatedTeam = { ...currentTeam, players: currentTeam.players.filter(p => !p.isBorrowed) };
+      setCurrentTeam(updatedTeam);
+      saveTeam(updatedTeam);
     }
     cancelGame();
     setGameName('');
@@ -575,6 +584,89 @@ export default function SoccerTimeTracker() {
       link.click();
       document.body.removeChild(link);
     }
+  };
+
+  const handleImportHistory = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (!content) return;
+
+      const parseTime = (timeStr: string): number => {
+        const parts = timeStr.trim().split(':');
+        if (parts.length === 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        return 0;
+      };
+
+      const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) { alert('Invalid CSV file.'); return; }
+
+      const parseCell = (c: string) => c.replace(/^"|"$/g, '').trim();
+      const headers = lines[0].split(',').map(parseCell);
+      const col = (row: string[], name: string) => row[headers.indexOf(name)] ?? '';
+
+      const gameMap = new Map<string, import('./hooks/useGameHistory').GameRecord>();
+
+      for (const line of lines.slice(1)) {
+        const cells = line.split(',').map(parseCell);
+        const date = col(cells, 'Date');
+        const gameName = col(cells, 'Game Name');
+        const teamName = col(cells, 'Team Name');
+        const score = col(cells, 'Score');
+        const totalTime = col(cells, 'Total Game Time');
+        const playerName = col(cells, 'Player Name');
+        const playerNumber = col(cells, 'Player Number');
+        const playerTime = col(cells, 'Player Time');
+        const goals = col(cells, 'Goals');
+        const redCards = col(cells, 'Red Cards');
+        const yellowCards = col(cells, 'Yellow Cards');
+        if (!gameName) continue;
+
+        const gameKey = `${date}|${gameName}|${teamName}|${score}|${totalTime}`;
+        if (!gameMap.has(gameKey)) {
+          const [teamScore, opponentScore] = score.split('-').map(n => parseInt(n) || 0);
+          gameMap.set(gameKey, {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            date: (() => {
+              // Parse DD/MM/YYYY or fall back to native parsing
+              const ddmmyyyy = date.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+              if (ddmmyyyy) return new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`).toISOString();
+              const parsed = new Date(date);
+              return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+            })(),
+            name: gameName,
+            teamName,
+            teamScore,
+            opponentScore,
+            totalTime: parseTime(totalTime),
+            playerStats: []
+          });
+        }
+
+        if (playerNumber) {
+          gameMap.get(gameKey)!.playerStats.push({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            name: playerName,
+            number: playerNumber,
+            time: parseTime(playerTime),
+            goals: parseInt(goals) || 0,
+            redCards: parseInt(redCards) || 0,
+            yellowCards: parseInt(yellowCards) || 0
+          });
+        }
+      }
+
+      const importedGames = Array.from(gameMap.values());
+      if (importedGames.length === 0) { alert('No valid game records found in CSV.'); return; }
+
+      const { added, merged } = importGames(importedGames);
+      alert(`Import complete: ${added} game(s) added, ${merged} game(s) merged.`);
+    };
+    reader.readAsText(file);
+    event.target.value = '';
   };
 
   const getSlotDisplayName = (slotKey: string) => {
@@ -942,7 +1034,16 @@ export default function SoccerTimeTracker() {
       <h1 className="text-3xl font-bold mb-6">{currentTeam.name}</h1>
 
       <div className="mb-6" ref={addPlayerSectionRef}>
-        <h2 className="text-xl font-semibold mb-3">Add Player</h2>
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="text-xl font-semibold">Add Player</h2>
+          <button
+            type="button"
+            onClick={() => setIsBorrowedPlayer(prev => !prev)}
+            className={`px-3 py-1 text-sm font-medium rounded-full border transition-colors ${isBorrowedPlayer ? 'bg-amber-400 border-amber-500 text-white' : 'bg-white border-gray-300 text-gray-500 hover:border-amber-400 hover:text-amber-500'}`}
+          >
+            Borrow Player
+          </button>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
           <input
             type="text"
@@ -1008,12 +1109,12 @@ export default function SoccerTimeTracker() {
               </div>
             )}
           </div>
-          <button 
+          <button
             onClick={editingPlayerId ? handleUpdatePlayer : handleAddPlayer}
-            className={`px-4 py-2 ${editingPlayerId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'} text-white rounded`}
+            className={`px-4 py-2 ${editingPlayerId ? 'bg-blue-600 hover:bg-blue-700' : isBorrowedPlayer ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-600 hover:bg-green-700'} text-white rounded`}
           >
-            {editingPlayerId ? <Save size={18} className="inline mr-1" /> : <Plus size={18} className="inline mr-1" />} 
-            {editingPlayerId ? 'Update' : 'Add'}
+            {editingPlayerId ? <Save size={18} className="inline mr-1" /> : <Plus size={18} className="inline mr-1" />}
+            {editingPlayerId ? 'Update' : isBorrowedPlayer ? 'Add Borrowed' : 'Add'}
           </button>
           {editingPlayerId && (
             <button 
@@ -1314,8 +1415,12 @@ export default function SoccerTimeTracker() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold">{currentTeam ? `${currentTeam.name} History` : 'Game History'}</h1>
           <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-blue-600 hover:underline cursor-pointer">
+              <Upload size={20} /> Import CSV
+              <input type="file" accept=".csv" onChange={handleImportHistory} className="hidden" />
+            </label>
             {displayedHistory.length > 0 && (
-              <button 
+              <button
                 onClick={() => exportHistoryToCSV(displayedHistory)}
                 className="flex items-center gap-2 text-green-600 hover:underline"
               >

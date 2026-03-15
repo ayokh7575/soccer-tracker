@@ -228,7 +228,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
                         isDragging.current = false;
                         setDraggedPlayerId(null);
                       }}
-                      className={`bg-white rounded-full w-20 h-20 flex flex-col items-center justify-center shadow-lg cursor-pointer hover:shadow-xl ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${playersToSubOut.includes(player.id) ? 'ring-4 ring-red-500' : ''}`}
+                      className={`${player.isBorrowed ? 'bg-amber-100' : 'bg-white'} rounded-full w-20 h-20 flex flex-col items-center justify-center shadow-lg cursor-pointer hover:shadow-xl ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${playersToSubOut.includes(player.id) ? 'ring-4 ring-red-500' : ''}`}
                     >
                       <div className="font-bold text-lg">#{player.number}</div>
                       <div className="text-xs text-center px-1">{getPlayerDisplayName(player)}</div>
@@ -332,7 +332,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
                   isDragging.current = false;
                   setDraggedPlayerId(null);
                 }}
-                className={`relative bg-gray-100 rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-pointer hover:shadow-xl transition-all duration-200 ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${dragOverTarget === player.id ? 'ring-4 ring-yellow-400 scale-110' : ''} ${playersToSubIn.includes(player.id) ? 'ring-4 ring-green-500' : ''}`}
+                className={`relative ${player.isBorrowed ? 'bg-amber-100' : 'bg-gray-100'} rounded-full w-24 h-24 flex flex-col items-center justify-center shadow-lg cursor-pointer hover:shadow-xl transition-all duration-200 ${player.id === draggedPlayerId ? 'ring-4 ring-blue-400 opacity-75' : ''} ${dragOverTarget === player.id ? 'ring-4 ring-yellow-400 scale-110' : ''} ${playersToSubIn.includes(player.id) ? 'ring-4 ring-green-500' : ''}`}
               >
                 <div className="font-bold text-lg">#{player.number}</div>
                 <div className="text-xs text-center px-1">{getPlayerDisplayName(player)}</div>

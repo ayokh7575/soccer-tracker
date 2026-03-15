@@ -4,3 +4,8 @@
 // Then replace the hash below and redeploy.
 export const ACCESS_CODE_HASH =
   '1c0bce8ec87ac0e3a07a0b957f80f8133073ce41b8031bdc962ed32f6c4b3301';
+
+// Club branding — update these two values to customise for any club.
+// Place the logo image in public/images/ and set the filename below.
+export const CLUB_NAME = 'Northcote City Football Club';
+export const CLUB_LOGO = `${process.env.PUBLIC_URL}/images/ncfc-logo.png`;

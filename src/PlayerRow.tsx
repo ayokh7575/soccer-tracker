@@ -11,23 +11,26 @@ interface PlayerRowProps {
 
 export const PlayerRow: React.FC<PlayerRowProps> = ({ player, onRemove, onEdit, onToggleAvailability }) => {
   return (
-    <div className={`flex items-center justify-between p-3 border rounded ${player.isUnavailable ? 'bg-gray-100' : ''}`} data-testid="player-row">
+    <div className={`flex items-center justify-between p-3 border rounded ${player.isUnavailable ? 'bg-gray-100' : player.isBorrowed ? 'bg-amber-50 border-amber-300' : ''}`} data-testid="player-row">
       <div className={player.isUnavailable ? 'opacity-50' : ''}>
         <span className="font-semibold">#{player.number}</span>
         <span className="ml-3">{player.firstName} {player.lastName}</span>
         <span className="ml-3 text-sm bg-gray-200 px-2 py-1 rounded">{player.position}{player.secondaryPositions && player.secondaryPositions.length > 0 ? ` / ${player.secondaryPositions.join(' / ')}` : ''}</span>
+        {player.isBorrowed && <span className="ml-2 text-xs bg-amber-400 text-white font-semibold px-2 py-0.5 rounded-full">Borrowed</span>}
         {player.isUnavailable && <span className="ml-2 text-xs text-red-600 font-semibold">(Unavailable)</span>}
       </div>
       <div className="flex gap-2">
-        <button
-          type="button"
-          aria-label={player.isUnavailable ? "Mark as available" : "Mark as unavailable"}
-          onClick={() => onToggleAvailability(player)}
-          className={`p-2 rounded ${player.isUnavailable ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 hover:bg-gray-100'}`}
-          title={player.isUnavailable ? "Mark as available" : "Mark as unavailable"}
-        >
-          {player.isUnavailable ? <XCircle size={16} /> : <Ban size={16} />}
-        </button>
+        {!player.isBorrowed && (
+          <button
+            type="button"
+            aria-label={player.isUnavailable ? "Mark as available" : "Mark as unavailable"}
+            onClick={() => onToggleAvailability(player)}
+            className={`p-2 rounded ${player.isUnavailable ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 hover:bg-gray-100'}`}
+            title={player.isUnavailable ? "Mark as available" : "Mark as unavailable"}
+          >
+            {player.isUnavailable ? <XCircle size={16} /> : <Ban size={16} />}
+          </button>
+        )}
         <button
           type="button"
           aria-label="Edit player"

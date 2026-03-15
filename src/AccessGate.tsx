@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ACCESS_CODE_HASH } from './accessConfig';
+import { ACCESS_CODE_HASH, CLUB_NAME, CLUB_LOGO } from './accessConfig';
 
 async function hashCode(code: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -47,8 +47,11 @@ export default function AccessGate({ children }: { children: React.ReactNode }) 
   return (
     <div className="min-h-screen bg-green-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
+        <div className="flex justify-center mb-4">
+          <img src={CLUB_LOGO} alt={CLUB_NAME} className="w-24 h-24 object-contain" />
+        </div>
         <h1 className="text-2xl font-bold text-green-800 text-center mb-2">
-          Soccer Time Tracker
+          {CLUB_NAME}
         </h1>
         <p className="text-gray-500 text-center mb-6 text-sm">
           Enter the access code to continue

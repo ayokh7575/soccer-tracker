@@ -47,5 +47,43 @@ export const useGameHistory = () => {
     localStorage.setItem('gameHistory', JSON.stringify(updated));
   };
 
-  return { history, saveGame, deleteGame };
+  const importGames = (importedGames: GameRecord[]): { added: number; merged: number } => {
+    const updated = [...history];
+    let added = 0;
+    let merged = 0;
+
+    for (const importedGame of importedGames) {
+      const existingIndex = updated.findIndex(g =>
+        g.name === importedGame.name &&
+        g.teamName === importedGame.teamName &&
+        g.teamScore === importedGame.teamScore &&
+        g.opponentScore === importedGame.opponentScore &&
+        g.totalTime === importedGame.totalTime &&
+        g.date.split('T')[0] === importedGame.date.split('T')[0]
+      );
+      if (existingIndex >= 0) {
+        // Merge player stats: replace matching players (by number), add new ones
+        const mergedStats = [...updated[existingIndex].playerStats];
+        for (const importedStat of importedGame.playerStats) {
+          const idx = mergedStats.findIndex(s => s.number === importedStat.number);
+          if (idx >= 0) {
+            mergedStats[idx] = importedStat;
+          } else {
+            mergedStats.push(importedStat);
+          }
+        }
+        updated[existingIndex] = { ...updated[existingIndex], playerStats: mergedStats };
+        merged++;
+      } else {
+        updated.unshift(importedGame);
+        added++;
+      }
+    }
+
+    setHistory(updated);
+    localStorage.setItem('gameHistory', JSON.stringify(updated));
+    return { added, merged };
+  };
+
+  return { history, saveGame, deleteGame, importGames };
 };

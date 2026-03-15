@@ -6,6 +6,7 @@ export interface Player {
   position: string;
   secondaryPositions?: string[];
   isUnavailable?: boolean;
+  isBorrowed?: boolean;
 }
 
 export interface Team {
