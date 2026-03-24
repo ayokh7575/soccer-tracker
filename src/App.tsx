@@ -12,7 +12,7 @@ import { UserManual } from './UserManual';
 import AccessGate from './AccessGate';
 import './index.css';
 
-const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'RM', 'LM', 'AM', 'LW', 'RW', 'CF'];
+export const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'RM', 'LM', 'AM', 'LW', 'RW', 'CF'];
 const FORMATIONS = ['1-4-4-2', '1-4-3-3'];
 
 const FORMATION_LAYOUTS = {
@@ -685,12 +685,13 @@ export default function SoccerTimeTracker() {
 
   const getSubstitutes = () => {
     const assignedPlayerIds = Object.values(formationAssignments).filter(Boolean);
-    const substitutes = currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id)) || [];
+    const substitutes = currentTeam?.players.filter(p => !assignedPlayerIds.includes(p.id) && !p.isUnavailable) || [];
 
-    const filteredSubstitutes = substitutes.filter(p => 
-      p.firstName.toLowerCase().includes(substituteSearchQuery.toLowerCase()) || 
-      p.lastName.toLowerCase().includes(substituteSearchQuery.toLowerCase()) || 
-      p.number.includes(substituteSearchQuery));
+    const filteredSubstitutes = substitutes.filter(p =>
+      (p.firstName.toLowerCase().includes(substituteSearchQuery.toLowerCase()) ||
+      p.lastName.toLowerCase().includes(substituteSearchQuery.toLowerCase()) ||
+      p.number.includes(substituteSearchQuery)) &&
+      (playerFilterPosition ? p.position === playerFilterPosition : true));
 
     return filteredSubstitutes.sort((a, b) => {
       if (substituteSortKey === 'number') {
@@ -1563,6 +1564,10 @@ export default function SoccerTimeTracker() {
             formationLayouts={FORMATION_LAYOUTS}
             substituteSortKey={substituteSortKey}
             onSetSubstituteSortKey={setSubstituteSortKey}
+            substituteSearchQuery={substituteSearchQuery}
+            onSetSubstituteSearchQuery={setSubstituteSearchQuery}
+            playerFilterPosition={playerFilterPosition}
+            onSetPlayerFilterPosition={setPlayerFilterPosition}
           />
         )}
         {view === 'history' && renderHistory()}

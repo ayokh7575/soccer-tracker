@@ -1,6 +1,7 @@
 import React from 'react';
-import { Play, Pause, Square, Clock, Undo2 } from 'lucide-react';
+import { Play, Pause, Square, Clock, Undo2, Search } from 'lucide-react';
 import { Player, GameAction } from './types';
+import { POSITIONS } from './App';
 
 interface GameLiveProps {
   gameName: string;
@@ -55,6 +56,10 @@ interface GameLiveProps {
 
   substituteSortKey: 'number' | 'position';
   onSetSubstituteSortKey: (key: 'number' | 'position') => void;
+  substituteSearchQuery: string;
+  onSetSubstituteSearchQuery: (query: string) => void;
+  playerFilterPosition: string;
+  onSetPlayerFilterPosition: (pos: string) => void;
 }
 
 export const GameLive: React.FC<GameLiveProps> = ({
@@ -106,6 +111,10 @@ export const GameLive: React.FC<GameLiveProps> = ({
   formationLayouts,
   substituteSortKey,
   onSetSubstituteSortKey,
+  substituteSearchQuery,
+  onSetSubstituteSearchQuery,
+  playerFilterPosition,
+  onSetPlayerFilterPosition,
 }) => {
   const layout = formationLayouts[formation];
   const slots = getFormationSlots();
@@ -254,7 +263,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
         </div>
 
         <div>
-          <div className="flex justify-between items-center mb-3">
+          <div className="flex justify-between items-center mb-2">
             <h2 className="font-semibold">Substitutes - Drag to pitch</h2>
             <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
               <button 
@@ -271,7 +280,32 @@ export const GameLive: React.FC<GameLiveProps> = ({
               </button>
             </div>
           </div>
-          <div 
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={14} className="text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={substituteSearchQuery}
+                onChange={(e) => onSetSubstituteSearchQuery(e.target.value)}
+                placeholder="Search substitutes..."
+                className="w-full pl-9 pr-3 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <select
+              value={playerFilterPosition}
+              onChange={(e) => onSetPlayerFilterPosition(e.target.value)}
+              className="px-2 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              aria-label="Filter by position"
+            >
+              <option value="">All</option>
+              {POSITIONS.map(pos => (
+                <option key={pos} value={pos}>{pos}</option>
+              ))}
+            </select>
+          </div>
+          <div
             className={`flex flex-wrap gap-3 p-3 border-2 border-dashed rounded-lg min-h-[200px] transition-colors duration-200 ${dragOverTarget === 'bench' ? 'bg-blue-50 border-blue-500' : ''}`}
             onDragOver={handleDragOver}
             onDragEnter={(e) => handleDragEnterZone(e, 'bench')}
