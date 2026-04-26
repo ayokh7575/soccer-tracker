@@ -11,6 +11,7 @@ Welcome to the Soccer Time Tracker! This application helps you manage your socce
     *   [Adding Players](#adding-players)
     *   [Editing Players](#editing-players)
     *   [Player Availability](#player-availability)
+    *   [Borrowing a Player](#borrowing-a-player)
 4.  [Starting a Game](#starting-a-game)
     *   [Formation Setup](#formation-setup)
     *   [Auto-Assign Players](#auto-assign-players)
@@ -43,12 +44,16 @@ Once authenticated, you will see the **Home Screen**. This is your central hub f
 1.  On the Home Screen, locate the **Create New Team** section.
 2.  Enter a **Team Name** (e.g., "Tigers FC").
 3.  Enter a **Default Duration** for games in minutes (e.g., "80").
-4.  Click the **Create** button.
+4.  Select **11-a-side** or **9-a-side** from the dropdown (defaults to 11-a-side).
+5.  Click the **Create** button.
+
+> The players-per-side setting determines which formations are available when you set up a game. It is also displayed next to the team name on the team page.
 
 ### Importing a Team
 If you have a CSV file with your roster, you can import it directly.
-1.  Click the **Import Team CSV** button.
-2.  Select your CSV file.
+1.  Select **11-a-side** or **9-a-side** from the dropdown before importing.
+2.  Click the **Import Team CSV** button.
+3.  Select your CSV file.
     *   **CSV Format:** `First Name, Last Name, Number, Position, Secondary Positions...`
     *   *Example:* `John, Doe, 10, CF, RW;LW`
 
@@ -56,9 +61,9 @@ If you have a CSV file with your roster, you can import it directly.
 
 ## 3. Managing Players
 
-Click on a team name from the "My Teams" list to enter the **Team Detail View**.
+Click on a team name from the "My Teams" list to enter the **Team Detail View**. The team name is shown with its players-per-side setting (e.g., *NCFC U16 (9-a-side)*). From here you can add, edit, and delete players.
 
-![Add Player screen](./images/add-player.png)
+![Team Detail screen](./images/add-player.png)
 
 ### Adding Players
 1.  Fill in the **First Name**, **Last Name**, and **Number**.
@@ -78,16 +83,29 @@ If a player is absent for a game:
 2.  The player will be grayed out and marked as `(Unavailable)`.
 3.  They will not be included in auto-assignments for the next game.
 
+### Borrowing a Player
+If you need a temporary player for a single game (e.g., a guest from another team):
+1.  Click the **Borrow Player** button at the top of the Team Detail View — it highlights in orange to indicate you are adding a temporary player.
+2.  Fill in the borrowed player's details and click **Add Borrowed**.
+3.  The borrowed player appears highlighted in orange in the player list so they are easy to identify at a glance.
+4.  Borrowed players are automatically removed from the squad after the game ends.
+
+![Borrow Player button highlighted in orange](./images/borrow-player.png)
+
 ---
 
 ## 4. Starting a Game
 
-From the Team Detail View, click **Set Formation & Start Game**.
+Once players have been added, the **Set Formation & Start Game** button will appear at the bottom of the Team Detail View. Any borrowed players are shown highlighted in a different colour. Click the button to proceed to formation setup.
+
+![Borrowed player highlighted and Set Formation & Start Game button active](./images/goto-set-formation-start-game.png)
 
 ![Formation Setup screen](./images/formation-setup.png)
 
 ### Formation Setup
-1.  **Select Formation:** Choose between `1-4-4-2` or `1-4-3-3` from the dropdown.
+1.  **Select Formation:** Choose from the available formations for your team type:
+    *   **11-a-side:** `1-4-4-2` or `1-4-3-3`
+    *   **9-a-side:** `1-3-3-2` or `1-4-3-1`
 2.  **Assign Players:**
     *   **Drag and Drop:** Drag players from the "Available Players" list onto a position on the field.
     *   **Auto-Assign:** Click **Auto-Assign Players** to automatically fill the field based on player positions.
