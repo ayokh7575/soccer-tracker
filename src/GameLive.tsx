@@ -306,6 +306,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
             </select>
           </div>
           <div
+            data-testid="substitutes-container"
             className={`flex flex-wrap gap-3 p-3 border-2 border-dashed rounded-lg min-h-[200px] transition-colors duration-200 ${dragOverTarget === 'bench' ? 'bg-blue-50 border-blue-500' : ''}`}
             onDragOver={handleDragOver}
             onDragEnter={(e) => handleDragEnterZone(e, 'bench')}

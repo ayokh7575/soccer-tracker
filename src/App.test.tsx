@@ -147,7 +147,7 @@ describe('SoccerTimeTracker Substitution Tests', () => {
     // Bench player (#99) should now be on the field (not in substitutes section)
     // Field player (#1) should now be in the substitutes section
     
-    const substitutesSection = screen.getByText('Substitutes - Drag to pitch').closest('div')?.nextElementSibling;
+    const substitutesSection = screen.getByTestId('substitutes-container');
     expect(substitutesSection).not.toHaveTextContent('#99');
     expect(substitutesSection).toHaveTextContent('#1');
   });

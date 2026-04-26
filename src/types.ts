@@ -13,6 +13,7 @@ export interface Team {
   id: string;
   name: string;
   defaultGameDuration?: number;
+  playersPerSide?: 9 | 11;
   players: Player[];
 }
 

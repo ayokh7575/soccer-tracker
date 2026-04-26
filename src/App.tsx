@@ -13,7 +13,10 @@ import AccessGate from './AccessGate';
 import './index.css';
 
 export const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'RM', 'LM', 'AM', 'LW', 'RW', 'CF'];
-const FORMATIONS = ['1-4-4-2', '1-4-3-3'];
+const FORMATIONS_BY_SIDE: Record<9 | 11, string[]> = {
+  11: ['1-4-4-2', '1-4-3-3'],
+  9:  ['1-3-3-2', '1-4-3-1'],
+};
 
 const FORMATION_LAYOUTS = {
   '1-4-4-2': {
@@ -41,6 +44,28 @@ const FORMATION_LAYOUTS = {
     RW:  { x: 85, y: 18 },
     CF:  { x: 50, y: 12 },
     LW:  { x: 15, y: 18 }
+  },
+  '1-3-3-2': {
+    GK:  { x: 50, y: 88 },
+    LB:  { x: 25, y: 63 },
+    CB:  { x: 50, y: 63 },
+    RB:  { x: 75, y: 63 },
+    LM:  { x: 20, y: 37 },
+    CM:  { x: 50, y: 37 },
+    RM:  { x: 80, y: 37 },
+    CF:  { x: 35, y: 12 },
+    CF2: { x: 65, y: 12 }
+  },
+  '1-4-3-1': {
+    GK:  { x: 50, y: 88 },
+    LB:  { x: 15, y: 63 },
+    CB:  { x: 38, y: 63 },
+    CB2: { x: 62, y: 63 },
+    RB:  { x: 85, y: 63 },
+    LM:  { x: 20, y: 37 },
+    CM:  { x: 50, y: 37 },
+    RM:  { x: 80, y: 37 },
+    CF:  { x: 50, y: 12 }
   }
 };
 
@@ -54,6 +79,7 @@ export default function SoccerTimeTracker() {
   
   const [teamNameInput, setTeamNameInput] = useState('');
   const [teamDefaultDuration, setTeamDefaultDuration] = useState(80);
+  const [teamPlayersPerSide, setTeamPlayersPerSide] = useState<9 | 11>(11);
   const [playerFirstName, setPlayerFirstName] = useState('');
   const [playerLastName, setPlayerLastName] = useState('');
   const [playerNumber, setPlayerNumber] = useState('');
@@ -254,11 +280,13 @@ export default function SoccerTimeTracker() {
         id: Date.now().toString(),
         name: teamNameInput,
         defaultGameDuration: teamDefaultDuration,
+        playersPerSide: teamPlayersPerSide,
         players: []
       };
       saveTeam(team);
       setCurrentTeam(team);
       setTeamNameInput('');
+      setTeamPlayersPerSide(11);
       setView('team-detail');
       cancelEditing();
     }
@@ -314,12 +342,14 @@ export default function SoccerTimeTracker() {
           id: Date.now().toString(),
           name: teamName,
           defaultGameDuration: teamDefaultDuration,
+          playersPerSide: teamPlayersPerSide,
           players
         };
         saveTeam(newTeam);
         setCurrentTeam(newTeam);
         setTeamNameInput('');
         setTeamDefaultDuration(80);
+        setTeamPlayersPerSide(11);
         setView('team-detail');
         cancelEditing();
       } else {
@@ -953,7 +983,16 @@ export default function SoccerTimeTracker() {
             className="w-16 px-2 py-2 border rounded text-center"
             title="Default Game Duration (1-90 mins)"
           />
-          <button 
+          <select
+            value={teamPlayersPerSide}
+            onChange={(e) => setTeamPlayersPerSide(Number(e.target.value) as 9 | 11)}
+            className="px-3 py-2 border rounded"
+            title="Players per side"
+          >
+            <option value={11}>11-a-side</option>
+            <option value={9}>9-a-side</option>
+          </select>
+          <button
             onClick={handleCreateTeam}
             disabled={!teamNameInput.trim() || teamDefaultDuration <= 0}
             className={`px-6 py-2 text-white rounded ${!teamNameInput.trim() || teamDefaultDuration <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
@@ -1032,7 +1071,10 @@ export default function SoccerTimeTracker() {
         </div>
       </div>
       
-      <h1 className="text-3xl font-bold mb-6">{currentTeam.name}</h1>
+      <h1 className="text-3xl font-bold mb-6">
+        {currentTeam.name}
+        <span className="text-lg font-normal text-gray-500 ml-2">({currentTeam.playersPerSide ?? 11}-a-side)</span>
+      </h1>
 
       <div className="mb-6" ref={addPlayerSectionRef}>
         <div className="flex items-center gap-3 mb-3">
@@ -1185,7 +1227,12 @@ export default function SoccerTimeTracker() {
 
       {currentTeam && currentTeam.players.length > 0 && (
         <button
-          onClick={() => setView('formation')}
+          onClick={() => {
+            const side = currentTeam.playersPerSide ?? 11;
+            setFormation(FORMATIONS_BY_SIDE[side][0]);
+            setFormationAssignments({});
+            setView('formation');
+          }}
           className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
         >
           Set Formation & Start Game
@@ -1236,7 +1283,7 @@ export default function SoccerTimeTracker() {
               }}
               className="px-4 py-2 border rounded"
             >
-              {FORMATIONS.map(f => (
+              {FORMATIONS_BY_SIDE[currentTeam?.playersPerSide ?? 11].map(f => (
                 <option key={f} value={f}>{f}</option>
               ))}
             </select>
