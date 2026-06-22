@@ -1,18 +1,19 @@
 import { renderHook, act } from '@testing-library/react';
 import { useGameHistory, GameRecord } from './useGameHistory';
 
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => { store[key] = value; },
-    clear: () => { store = {}; },
-    removeItem: (key: string) => { delete store[key]; },
-    key: (index: number) => Object.keys(store)[index] || null,
-    get length() { return Object.keys(store).length; }
-  };
-})();
-Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+// Mock the Supabase client with a chainable, awaitable query builder that
+// resolves to empty data. The hook's optimistic local-state updates (and the
+// in-memory importGames merge logic) are what these tests exercise.
+// Plain functions (not jest.fn) so CRA's resetMocks doesn't wipe them between tests.
+jest.mock('../supabaseClient', () => {
+  const q: any = {};
+  for (const m of ['select', 'order', 'upsert', 'insert', 'delete', 'eq', 'not']) {
+    q[m] = () => q;
+  }
+  q.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
+    resolve({ data: [], error: null });
+  return { supabase: { from: () => q } };
+});
 
 const makeGame = (name: string, players: { number: string; goals?: number; time?: number }[]): GameRecord => ({
   id: `id-${name}`,
@@ -34,15 +35,12 @@ const makeGame = (name: string, players: { number: string; goals?: number; time?
 });
 
 describe('useGameHistory - importGames', () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-  });
-
-  test('adds a new game when no history exists', () => {
+  test('adds a new game when no history exists', async () => {
     const { result } = renderHook(() => useGameHistory());
+    await act(async () => {}); // flush the initial async load
 
-    act(() => {
-      result.current.importGames([makeGame('Game 1', [{ number: '21', goals: 1 }])]);
+    await act(async () => {
+      await result.current.importGames([makeGame('Game 1', [{ number: '21', goals: 1 }])]);
     });
 
     expect(result.current.history).toHaveLength(1);
@@ -50,11 +48,12 @@ describe('useGameHistory - importGames', () => {
     expect(result.current.history[0].playerStats[0].number).toBe('21');
   });
 
-  test('adds multiple new games', () => {
+  test('adds multiple new games', async () => {
     const { result } = renderHook(() => useGameHistory());
+    await act(async () => {}); // flush the initial async load
 
-    act(() => {
-      result.current.importGames([
+    await act(async () => {
+      await result.current.importGames([
         makeGame('Game 1', [{ number: '21' }]),
         makeGame('Game 2', [{ number: '22' }])
       ]);
@@ -63,12 +62,13 @@ describe('useGameHistory - importGames', () => {
     expect(result.current.history).toHaveLength(2);
   });
 
-  test('returns correct added/merged counts for new games', () => {
+  test('returns correct added/merged counts for new games', async () => {
     const { result } = renderHook(() => useGameHistory());
+    await act(async () => {}); // flush the initial async load
     let counts = { added: 0, merged: 0 };
 
-    act(() => {
-      counts = result.current.importGames([
+    await act(async () => {
+      counts = await result.current.importGames([
         makeGame('Game 1', [{ number: '21' }]),
         makeGame('Game 2', [{ number: '22' }])
       ]);
@@ -78,17 +78,16 @@ describe('useGameHistory - importGames', () => {
     expect(counts.merged).toBe(0);
   });
 
-  test('merges player stats when game name already exists', () => {
+  test('merges player stats when game name already exists', async () => {
     const { result } = renderHook(() => useGameHistory());
+    await act(async () => {}); // flush the initial async load
 
-    // Save an existing game with player #21
-    act(() => {
-      result.current.saveGame(makeGame('test', [{ number: '21', goals: 1 }]));
+    await act(async () => {
+      await result.current.saveGame(makeGame('test', [{ number: '21', goals: 1 }]));
     });
 
-    // Import same game with player #22 added
-    act(() => {
-      result.current.importGames([
+    await act(async () => {
+      await result.current.importGames([
         makeGame('test', [{ number: '21', goals: 1 }, { number: '22', goals: 0 }])
       ]);
     });
@@ -98,16 +97,16 @@ describe('useGameHistory - importGames', () => {
     expect(game.playerStats.some(s => s.number === '22')).toBe(true);
   });
 
-  test('replaces existing player stats (by number) when merging', () => {
+  test('replaces existing player stats (by number) when merging', async () => {
     const { result } = renderHook(() => useGameHistory());
+    await act(async () => {}); // flush the initial async load
 
-    act(() => {
-      result.current.saveGame(makeGame('test', [{ number: '21', goals: 0 }]));
+    await act(async () => {
+      await result.current.saveGame(makeGame('test', [{ number: '21', goals: 0 }]));
     });
 
-    // Import same game with updated stats for player #21
-    act(() => {
-      result.current.importGames([makeGame('test', [{ number: '21', goals: 2 }])]);
+    await act(async () => {
+      await result.current.importGames([makeGame('test', [{ number: '21', goals: 2 }])]);
     });
 
     const game = result.current.history.find(g => g.name === 'test')!;
@@ -115,16 +114,17 @@ describe('useGameHistory - importGames', () => {
     expect(player21.goals).toBe(2);
   });
 
-  test('returns correct added/merged counts when merging', () => {
+  test('returns correct added/merged counts when merging', async () => {
     const { result } = renderHook(() => useGameHistory());
+    await act(async () => {}); // flush the initial async load
     let counts = { added: 0, merged: 0 };
 
-    act(() => {
-      result.current.saveGame(makeGame('Existing Game', [{ number: '21' }]));
+    await act(async () => {
+      await result.current.saveGame(makeGame('Existing Game', [{ number: '21' }]));
     });
 
-    act(() => {
-      counts = result.current.importGames([
+    await act(async () => {
+      counts = await result.current.importGames([
         makeGame('Existing Game', [{ number: '21' }]),
         makeGame('New Game', [{ number: '22' }])
       ]);
@@ -134,24 +134,13 @@ describe('useGameHistory - importGames', () => {
     expect(counts.merged).toBe(1);
   });
 
-  test('persists imported games to localStorage', () => {
+  test('does not duplicate a game imported twice with no changes', async () => {
     const { result } = renderHook(() => useGameHistory());
-
-    act(() => {
-      result.current.importGames([makeGame('Game 1', [{ number: '21' }])]);
-    });
-
-    const stored = JSON.parse(window.localStorage.getItem('gameHistory') || '[]');
-    expect(stored).toHaveLength(1);
-    expect(stored[0].name).toBe('Game 1');
-  });
-
-  test('does not duplicate a game imported twice with no changes', () => {
-    const { result } = renderHook(() => useGameHistory());
+    await act(async () => {}); // flush the initial async load
     const game = makeGame('Game 1', [{ number: '21' }]);
 
-    act(() => { result.current.importGames([game]); });
-    act(() => { result.current.importGames([game]); });
+    await act(async () => { await result.current.importGames([game]); });
+    await act(async () => { await result.current.importGames([game]); });
 
     expect(result.current.history).toHaveLength(1);
   });

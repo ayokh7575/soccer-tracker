@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../supabaseClient';
 
 export interface PlayerStat {
   id: string;
@@ -21,69 +22,107 @@ export interface GameRecord {
   playerStats: PlayerStat[];
 }
 
+const rowToGame = (r: any): GameRecord => ({
+  id: r.id,
+  date: r.played_at,
+  name: r.name,
+  teamName: r.team_name,
+  teamScore: r.team_score,
+  opponentScore: r.opponent_score,
+  totalTime: r.total_time,
+  playerStats: (r.player_stats ?? []) as PlayerStat[],
+});
+
+const gameToRow = (g: GameRecord, teamId: string | null) => ({
+  id: g.id,
+  team_id: teamId,
+  name: g.name,
+  team_name: g.teamName,
+  played_at: g.date,
+  team_score: g.teamScore,
+  opponent_score: g.opponentScore,
+  total_time: g.totalTime,
+  player_stats: g.playerStats,
+});
+
 export const useGameHistory = () => {
   const [history, setHistory] = useState<GameRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('gameHistory');
-    if (saved) {
-      try {
-        setHistory(JSON.parse(saved));
-      } catch (error) {
-        console.error('Failed to parse game history:', error);
-      }
-    }
+  const reload = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('games')
+      .select('*')
+      .order('played_at', { ascending: false });
+    if (error) console.error('Failed to load games:', error);
+    else setHistory((data ?? []).map(rowToGame));
+    setLoading(false);
   }, []);
 
-  const saveGame = (game: GameRecord) => {
-    const updated = [game, ...history];
-    setHistory(updated);
-    localStorage.setItem('gameHistory', JSON.stringify(updated));
-  };
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
-  const deleteGame = (id: string) => {
-    const updated = history.filter(g => g.id !== id);
-    setHistory(updated);
-    localStorage.setItem('gameHistory', JSON.stringify(updated));
-  };
+  // teamId links the game to a team when known (normal play); imported games pass null.
+  const saveGame = useCallback(async (game: GameRecord, teamId: string | null = null) => {
+    setHistory(prev => [game, ...prev]);
+    const { error } = await supabase.from('games').insert(gameToRow(game, teamId));
+    if (error) console.error('Failed to save game:', error);
+  }, []);
 
-  const importGames = (importedGames: GameRecord[]): { added: number; merged: number } => {
-    const updated = [...history];
-    let added = 0;
-    let merged = 0;
+  const deleteGame = useCallback(async (id: string) => {
+    setHistory(prev => prev.filter(g => g.id !== id));
+    const { error } = await supabase.from('games').delete().eq('id', id);
+    if (error) console.error('Failed to delete game:', error);
+  }, []);
 
-    for (const importedGame of importedGames) {
-      const existingIndex = updated.findIndex(g =>
-        g.name === importedGame.name &&
-        g.teamName === importedGame.teamName &&
-        g.teamScore === importedGame.teamScore &&
-        g.opponentScore === importedGame.opponentScore &&
-        g.totalTime === importedGame.totalTime &&
-        g.date.split('T')[0] === importedGame.date.split('T')[0]
-      );
-      if (existingIndex >= 0) {
-        // Merge player stats: replace matching players (by number), add new ones
-        const mergedStats = [...updated[existingIndex].playerStats];
-        for (const importedStat of importedGame.playerStats) {
-          const idx = mergedStats.findIndex(s => s.number === importedStat.number);
-          if (idx >= 0) {
-            mergedStats[idx] = importedStat;
-          } else {
-            mergedStats.push(importedStat);
+  const importGames = useCallback(
+    async (importedGames: GameRecord[]): Promise<{ added: number; merged: number }> => {
+      let added = 0;
+      let merged = 0;
+      const updated = [...history];
+      const toPersist: GameRecord[] = [];
+
+      for (const imp of importedGames) {
+        const existingIndex = updated.findIndex(g =>
+          g.name === imp.name &&
+          g.teamName === imp.teamName &&
+          g.teamScore === imp.teamScore &&
+          g.opponentScore === imp.opponentScore &&
+          g.totalTime === imp.totalTime &&
+          g.date.split('T')[0] === imp.date.split('T')[0]
+        );
+        if (existingIndex >= 0) {
+          // Merge player stats: replace matching players (by number), add new ones.
+          const mergedStats = [...updated[existingIndex].playerStats];
+          for (const s of imp.playerStats) {
+            const i = mergedStats.findIndex(x => x.number === s.number);
+            if (i >= 0) mergedStats[i] = s;
+            else mergedStats.push(s);
           }
+          const mergedGame = { ...updated[existingIndex], playerStats: mergedStats };
+          updated[existingIndex] = mergedGame;
+          toPersist.push(mergedGame);
+          merged++;
+        } else {
+          updated.unshift(imp);
+          toPersist.push(imp);
+          added++;
         }
-        updated[existingIndex] = { ...updated[existingIndex], playerStats: mergedStats };
-        merged++;
-      } else {
-        updated.unshift(importedGame);
-        added++;
       }
-    }
 
-    setHistory(updated);
-    localStorage.setItem('gameHistory', JSON.stringify(updated));
-    return { added, merged };
-  };
+      setHistory(updated);
 
-  return { history, saveGame, deleteGame, importGames };
+      if (toPersist.length > 0) {
+        const { error } = await supabase
+          .from('games')
+          .upsert(toPersist.map(g => gameToRow(g, null)));
+        if (error) console.error('Failed to import games:', error);
+      }
+      return { added, merged };
+    },
+    [history]
+  );
+
+  return { history, loading, saveGame, deleteGame, importGames, reload };
 };

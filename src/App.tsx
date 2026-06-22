@@ -9,7 +9,9 @@ import { PlayerRow } from './PlayerRow';
 import { Team, Player } from './types';
 import { GameLive } from './GameLive';
 import { UserManual } from './UserManual';
-import AccessGate from './AccessGate';
+import AuthGate from './AuthGate';
+import { supabase } from './supabaseClient';
+import { hasLocalDataToMigrate, migrateLocalData } from './migrateLocalData';
 import './index.css';
 
 export const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'RM', 'LM', 'AM', 'LW', 'RW', 'CF'];
@@ -106,8 +108,23 @@ export default function SoccerTimeTracker() {
   const [playerFilterPosition, setPlayerFilterPosition] = useState('');
 
   // Custom Hooks
-  const { teams, saveTeam, deleteTeam } = useTeamStorage();
-  const { history, saveGame, deleteGame: deleteGameHistory, importGames } = useGameHistory();
+  const { teams, loading: teamsLoading, saveTeam, deleteTeam, reload: reloadTeams } = useTeamStorage();
+  const { history, saveGame, deleteGame: deleteGameHistory, importGames, reload: reloadHistory } = useGameHistory();
+
+  const [showMigrate, setShowMigrate] = useState(false);
+  useEffect(() => { setShowMigrate(hasLocalDataToMigrate()); }, []);
+
+  const handleMigrateLocalData = async () => {
+    try {
+      const r = await migrateLocalData();
+      await Promise.all([reloadTeams(), reloadHistory()]);
+      setShowMigrate(false);
+      alert(`Imported ${r.teams} team(s), ${r.players} player(s), and ${r.games} game(s) into your account.`);
+    } catch (e) {
+      console.error('Local data import failed:', e);
+      alert('Import failed. Your local data is unchanged — please try again.');
+    }
+  };
   
   const { 
     gameState, 
@@ -277,7 +294,7 @@ export default function SoccerTimeTracker() {
   const handleCreateTeam = () => {
     if (teamNameInput.trim() && teamDefaultDuration > 0) {
       const team: Team = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         name: teamNameInput,
         defaultGameDuration: teamDefaultDuration,
         playersPerSide: teamPlayersPerSide,
@@ -325,7 +342,7 @@ export default function SoccerTimeTracker() {
           const [firstName, lastName, number, position = 'SUB', ...secondaryParts] = parts;
           if (firstName && lastName && number) {
             players.push({
-              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              id: crypto.randomUUID(),
               firstName,
               lastName,
               number,
@@ -339,7 +356,7 @@ export default function SoccerTimeTracker() {
 
       if (players.length > 0) {
         const newTeam: Team = {
-          id: Date.now().toString(),
+          id: crypto.randomUUID(),
           name: teamName,
           defaultGameDuration: teamDefaultDuration,
           playersPerSide: teamPlayersPerSide,
@@ -363,7 +380,7 @@ export default function SoccerTimeTracker() {
   const handleAddPlayer = () => {
     if (playerFirstName && playerLastName && playerNumber && playerPosition) {
       const player: Player = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        id: crypto.randomUUID(),
         firstName: playerFirstName,
         lastName: playerLastName,
         number: playerNumber,
@@ -542,7 +559,7 @@ export default function SoccerTimeTracker() {
         }));
 
         saveGame({
-          id: Date.now().toString(),
+          id: crypto.randomUUID(),
           date: new Date().toISOString(),
           name: gameName,
           teamName: currentTeam.name,
@@ -550,7 +567,7 @@ export default function SoccerTimeTracker() {
           opponentScore: opponentGoals,
           totalTime: gameTime,
           playerStats
-        });
+        }, currentTeam.id);
 
         // Mark red carded players as unavailable, and remove borrowed players
         const redCardedPlayerIds = Object.keys(playerRedCards).filter(id => playerRedCards[id] > 0);
@@ -659,7 +676,7 @@ export default function SoccerTimeTracker() {
         if (!gameMap.has(gameKey)) {
           const [teamScore, opponentScore] = score.split('-').map(n => parseInt(n) || 0);
           gameMap.set(gameKey, {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            id: crypto.randomUUID(),
             date: (() => {
               // Parse DD/MM/YYYY or fall back to native parsing
               const ddmmyyyy = date.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -678,7 +695,7 @@ export default function SoccerTimeTracker() {
 
         if (playerNumber) {
           gameMap.get(gameKey)!.playerStats.push({
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            id: crypto.randomUUID(),
             name: playerName,
             number: playerNumber,
             time: parseTime(playerTime),
@@ -692,8 +709,9 @@ export default function SoccerTimeTracker() {
       const importedGames = Array.from(gameMap.values());
       if (importedGames.length === 0) { alert('No valid game records found in CSV.'); return; }
 
-      const { added, merged } = importGames(importedGames);
-      alert(`Import complete: ${added} game(s) added, ${merged} game(s) merged.`);
+      importGames(importedGames).then(({ added, merged }) => {
+        alert(`Import complete: ${added} game(s) added, ${merged} game(s) merged.`);
+      });
     };
     reader.readAsText(file);
     event.target.value = '';
@@ -963,7 +981,22 @@ export default function SoccerTimeTracker() {
           v{version} &copy; {new Date().getFullYear()} Alen Yokhanis
         </p>
       </div>
-      
+
+      {!teamsLoading && teams.length === 0 && showMigrate && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-300 rounded-lg flex items-center justify-between gap-4">
+          <div className="text-sm text-blue-900">
+            <p className="font-semibold">Local data found on this device</p>
+            <p>Import your existing teams and game history into your account.</p>
+          </div>
+          <button
+            onClick={handleMigrateLocalData}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold whitespace-nowrap"
+          >
+            Import data
+          </button>
+        </div>
+      )}
+
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-3">Create New Team</h2>
         <div className="flex flex-wrap gap-2 mb-4">
@@ -1019,7 +1052,9 @@ export default function SoccerTimeTracker() {
       
       <div>
         <h2 className="text-xl font-semibold mb-3">My Teams</h2>
-        {teams.length === 0 ? (
+        {teamsLoading ? (
+          <p className="text-gray-500">Loading teams…</p>
+        ) : teams.length === 0 ? (
           <p className="text-gray-500">No teams yet. Create one above!</p>
         ) : (
           <div className="space-y-2">
@@ -1555,7 +1590,7 @@ export default function SoccerTimeTracker() {
   };
 
   return (
-    <AccessGate>
+    <AuthGate>
     <div className="min-h-screen bg-gray-100 flex flex-col">
       <div className="flex-1">
         {view === 'home' && renderHome()}
@@ -1623,14 +1658,20 @@ export default function SoccerTimeTracker() {
       </div>
       <footer className="py-3 text-center text-xs text-gray-400">
         v{version} &copy; {new Date().getFullYear()} Alen Yokhanis
-        <button 
-          onClick={() => setView('manual')} 
+        <button
+          onClick={() => setView('manual')}
           className="ml-4 text-blue-500 hover:underline inline-flex items-center gap-1"
         >
           <BookOpen size={12} /> User Manual
         </button>
+        <button
+          onClick={() => supabase.auth.signOut()}
+          className="ml-4 text-blue-500 hover:underline"
+        >
+          Sign out
+        </button>
       </footer>
     </div>
-    </AccessGate>
+    </AuthGate>
   );
 }
