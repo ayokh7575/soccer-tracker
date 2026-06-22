@@ -1,90 +1,68 @@
 import { renderHook, act } from '@testing-library/react';
 import { useTeamStorage } from './hooks/useTeamStorage';
 import { Team } from './types';
-// Mock localStorage
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value.toString();
-    },
-    clear: () => {
-      store = {};
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    }
-  };
-})();
 
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock
+// Mock the Supabase client with a chainable, awaitable query builder that
+// resolves to empty data. These tests cover the hook's optimistic local state.
+// Plain functions (not jest.fn) so CRA's resetMocks doesn't wipe them between tests.
+jest.mock('./supabaseClient', () => {
+  const q: any = {};
+  for (const m of ['select', 'order', 'upsert', 'insert', 'delete', 'eq', 'not']) {
+    q[m] = () => q;
+  }
+  q.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
+    resolve({ data: [], error: null });
+  return { supabase: { from: () => q } };
 });
 
 describe('useTeamStorage', () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-  });
-
-  it('should initialize with empty teams', () => {
+  it('initializes with empty teams', async () => {
     const { result } = renderHook(() => useTeamStorage());
+    await act(async () => {}); // flush the initial async load
+    await act(async () => {});
     expect(result.current.teams).toEqual([]);
   });
 
-  it('should load teams from localStorage', () => {
-    const mockTeams: Team[] = [
-      { id: '1', name: 'Team A', players: [] },
-      { id: '2', name: 'Team B', players: [] }
-    ];
-    window.localStorage.setItem('teams', JSON.stringify(mockTeams));
-
+  it('saveTeam adds the team to local state', async () => {
     const { result } = renderHook(() => useTeamStorage());
-    expect(result.current.teams).toEqual(mockTeams);
-  });
+    await act(async () => {}); // flush the initial async load
+    const team: Team = { id: '1', name: 'New Team', players: [] };
 
-  it('should save a new team', () => {
-    const { result } = renderHook(() => useTeamStorage());
-    const newTeam: Team = { id: '1', name: 'New Team', players: [] };
-
-    act(() => {
-      result.current.saveTeam(newTeam);
+    await act(async () => {
+      await result.current.saveTeam(team);
     });
 
-    expect(result.current.teams).toContainEqual(newTeam);
-    expect(JSON.parse(window.localStorage.getItem('teams') || '[]')).toContainEqual(newTeam);
+    expect(result.current.teams).toContainEqual(team);
   });
 
-  it('should update an existing team', () => {
-    const initialTeam: Team = { id: '1', name: 'Old Name', players: [] };
-    window.localStorage.setItem('teams', JSON.stringify([initialTeam]));
-
+  it('saveTeam updates an existing team in place', async () => {
     const { result } = renderHook(() => useTeamStorage());
-    
-    const updatedTeam: Team = { ...initialTeam, name: 'New Name' };
+    await act(async () => {}); // flush the initial async load
+    const team: Team = { id: '1', name: 'Old Name', players: [] };
 
-    act(() => {
-      result.current.saveTeam(updatedTeam);
+    await act(async () => {
+      await result.current.saveTeam(team);
+    });
+    await act(async () => {
+      await result.current.saveTeam({ ...team, name: 'New Name' });
     });
 
     expect(result.current.teams).toHaveLength(1);
-    expect(result.current.teams[0]).toEqual(updatedTeam);
-    expect(JSON.parse(window.localStorage.getItem('teams') || '[]')[0].name).toBe('New Name');
+    expect(result.current.teams[0].name).toBe('New Name');
   });
 
-  it('should delete a team', () => {
-    const teamToDelete: Team = { id: '1', name: 'Delete Me', players: [] };
-    const teamToKeep: Team = { id: '2', name: 'Keep Me', players: [] };
-    window.localStorage.setItem('teams', JSON.stringify([teamToDelete, teamToKeep]));
-
+  it('deleteTeam removes the team from local state', async () => {
     const { result } = renderHook(() => useTeamStorage());
+    await act(async () => {}); // flush the initial async load
+    const team: Team = { id: '1', name: 'Delete Me', players: [] };
 
-    act(() => {
-      result.current.deleteTeam('1');
+    await act(async () => {
+      await result.current.saveTeam(team);
+    });
+    await act(async () => {
+      await result.current.deleteTeam('1');
     });
 
-    expect(result.current.teams).toHaveLength(1);
-    expect(result.current.teams[0]).toEqual(teamToKeep);
-    expect(JSON.parse(window.localStorage.getItem('teams') || '[]')).toHaveLength(1);
+    expect(result.current.teams).toHaveLength(0);
   });
 });
