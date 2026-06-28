@@ -9,7 +9,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
   const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
+  const [token, setToken] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -24,22 +25,42 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const handleSubmit = useCallback(
+  // Step 1: email a 6-digit code.
+  const sendCode = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       setError('');
       setSubmitting(true);
-      const redirectTo = `${window.location.origin}${process.env.PUBLIC_URL || ''}`;
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: redirectTo },
-      });
+      const { error } = await supabase.auth.signInWithOtp({ email: email.trim() });
       setSubmitting(false);
       if (error) setError(error.message);
-      else setSent(true);
+      else setCodeSent(true);
     },
     [email]
   );
+
+  // Step 2: verify the code; onAuthStateChange picks up the new session.
+  const verifyCode = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError('');
+      setSubmitting(true);
+      const { error } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: token.trim(),
+        type: 'email',
+      });
+      setSubmitting(false);
+      if (error) setError(error.message);
+    },
+    [email, token]
+  );
+
+  const reset = () => {
+    setCodeSent(false);
+    setToken('');
+    setError('');
+  };
 
   if (checking) return null;
   if (session) return <>{children}</>;
@@ -52,17 +73,43 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         </div>
         <h1 className="text-2xl font-bold text-green-800 text-center mb-2">{CLUB_NAME}</h1>
 
-        {sent ? (
-          <p className="text-gray-600 text-center my-6 text-sm">
-            Check your email for a sign-in link. You can open it on any device to access
-            your data.
-          </p>
-        ) : (
+        {codeSent ? (
           <>
             <p className="text-gray-500 text-center mb-6 text-sm">
-              Sign in to continue
+              Enter the 6-digit code sent to <span className="font-medium">{email}</span>
             </p>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={verifyCode} className="space-y-4">
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={token}
+                onChange={(e) => setToken(e.target.value.replace(/\D/g, ''))}
+                placeholder="123456"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center text-2xl tracking-[0.4em]"
+                autoFocus
+              />
+              {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+              <button
+                type="submit"
+                disabled={submitting || token.length < 6}
+                className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400"
+              >
+                {submitting ? 'Verifying…' : 'Verify'}
+              </button>
+            </form>
+            <button
+              onClick={reset}
+              className="w-full text-gray-400 text-xs text-center mt-4 hover:text-gray-600"
+            >
+              Use a different email
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-500 text-center mb-6 text-sm">Sign in to continue</p>
+            <form onSubmit={sendCode} className="space-y-4">
               <input
                 type="email"
                 value={email}
@@ -78,7 +125,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                 disabled={submitting || !email.trim()}
                 className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400"
               >
-                {submitting ? 'Sending…' : 'Send sign-in link'}
+                {submitting ? 'Sending…' : 'Send code'}
               </button>
             </form>
           </>
