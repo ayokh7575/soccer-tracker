@@ -61,7 +61,9 @@ export const useTeamStorage = () => {
 
   // Persists the whole team: upserts the team row, upserts its players, and
   // deletes any players no longer in the array (reconciles DB to local state).
-  const saveTeam = useCallback(async (team: Team) => {
+  // Returns whether the write succeeded so callers can avoid acting on a
+  // change the database rejected (e.g. navigating to a team that wasn't saved).
+  const saveTeam = useCallback(async (team: Team): Promise<boolean> => {
     // Optimistic local update so the UI stays responsive.
     setTeams(prev => [...prev.filter(t => t.id !== team.id), team]);
 
@@ -73,7 +75,7 @@ export const useTeamStorage = () => {
     });
     if (teamErr) {
       await handleWriteFailure(teamErr, 'Failed to save team:', 'Could not save the team. Please try again.');
-      return;
+      return false;
     }
 
     const players = team.players ?? [];
@@ -92,7 +94,7 @@ export const useTeamStorage = () => {
       const { error: upErr } = await neon.from('players').upsert(rows);
       if (upErr) {
         await handleWriteFailure(upErr, 'Failed to save players:', 'Could not save the players. Please try again.');
-        return;
+        return false;
       }
     }
 
@@ -103,15 +105,19 @@ export const useTeamStorage = () => {
     const { error: delErr } = await del;
     if (delErr) {
       await handleWriteFailure(delErr, 'Failed to reconcile players:', 'Could not update the squad. Please try again.');
+      return false;
     }
+    return true;
   }, [handleWriteFailure]);
 
-  const deleteTeam = useCallback(async (teamId: string) => {
+  const deleteTeam = useCallback(async (teamId: string): Promise<boolean> => {
     setTeams(prev => prev.filter(t => t.id !== teamId));
     const { error: err } = await neon.from('teams').delete().eq('id', teamId);
     if (err) {
       await handleWriteFailure(err, 'Failed to delete team:', 'Could not delete the team. Please try again.');
+      return false;
     }
+    return true;
   }, [handleWriteFailure]);
 
   const clearError = useCallback(() => setError(null), []);

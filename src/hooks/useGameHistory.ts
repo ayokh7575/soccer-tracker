@@ -81,12 +81,14 @@ export const useGameHistory = () => {
   );
 
   // teamId links the game to a team when known (normal play); imported games pass null.
-  const saveGame = useCallback(async (game: GameRecord, teamId: string | null = null) => {
+  const saveGame = useCallback(async (game: GameRecord, teamId: string | null = null): Promise<boolean> => {
     setHistory(prev => [game, ...prev]);
     const { error: err } = await neon.from('games').insert(gameToRow(game, teamId));
     if (err) {
       await handleWriteFailure(err, 'Failed to save game:', 'Could not save the game. Please try again.');
+      return false;
     }
+    return true;
   }, [handleWriteFailure]);
 
   const deleteGame = useCallback(async (id: string) => {

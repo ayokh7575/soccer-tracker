@@ -299,7 +299,18 @@ export default function SoccerTimeTracker() {
     });
   };
 
-  const handleCreateTeam = () => {
+  // Saves an updated version of the current team, reverting the local copy if
+  // the database rejects the write (otherwise the UI would keep showing a
+  // change that was never persisted).
+  const saveCurrentTeam = async (updated: Team) => {
+    const previous = currentTeam;
+    setCurrentTeam(updated);
+    const ok = await saveTeam(updated);
+    if (!ok) setCurrentTeam(previous);
+    return ok;
+  };
+
+  const handleCreateTeam = async () => {
     if (teamNameInput.trim() && teamDefaultDuration > 0) {
       const team: Team = {
         id: crypto.randomUUID(),
@@ -308,7 +319,8 @@ export default function SoccerTimeTracker() {
         playersPerSide: teamPlayersPerSide,
         players: []
       };
-      saveTeam(team);
+      // Only open the team once it actually exists in the database.
+      if (!(await saveTeam(team))) return;
       setCurrentTeam(team);
       setTeamNameInput('');
       setTeamPlayersPerSide(11);
@@ -322,7 +334,7 @@ export default function SoccerTimeTracker() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const content = e.target?.result as string;
       if (!content) return;
 
@@ -370,7 +382,8 @@ export default function SoccerTimeTracker() {
           playersPerSide: teamPlayersPerSide,
           players
         };
-        saveTeam(newTeam);
+        // Only open the imported team once it actually exists in the database.
+        if (!(await saveTeam(newTeam))) return;
         setCurrentTeam(newTeam);
         setTeamNameInput('');
         setTeamDefaultDuration(80);
@@ -398,8 +411,7 @@ export default function SoccerTimeTracker() {
         isBorrowed: isBorrowedPlayer || undefined
       };
       const updated = { ...currentTeam, players: [...currentTeam.players, player] };
-      setCurrentTeam(updated);
-      saveTeam(updated);
+      saveCurrentTeam(updated);
       setPlayerFirstName('');
       setPlayerLastName('');
       setPlayerNumber('');
@@ -428,8 +440,7 @@ export default function SoccerTimeTracker() {
           : p
       );
       const updatedTeam = { ...currentTeam, players: updatedPlayers };
-      setCurrentTeam(updatedTeam);
-      saveTeam(updatedTeam);
+      saveCurrentTeam(updatedTeam);
       cancelEditing();
     }
   };
@@ -440,16 +451,14 @@ export default function SoccerTimeTracker() {
       p.id === player.id ? { ...p, isUnavailable: !p.isUnavailable } : p
     );
     const updatedTeam = { ...currentTeam, players: updatedPlayers };
-    setCurrentTeam(updatedTeam);
-    saveTeam(updatedTeam);
+    saveCurrentTeam(updatedTeam);
   };
 
   const removePlayer = (playerId: string) => {
     if (!currentTeam) return;
     if (window.confirm('Are you sure you want to remove this player?')) {
       const updated = { ...currentTeam, players: currentTeam.players.filter(p => p.id !== playerId) };
-      setCurrentTeam(updated);
-      saveTeam(updated);
+      saveCurrentTeam(updated);
     }
   };
 
@@ -457,8 +466,7 @@ export default function SoccerTimeTracker() {
     if (!currentTeam) return;
     if (window.confirm('Are you sure you want to remove all players from this team?')) {
       const updated = { ...currentTeam, players: [] };
-      setCurrentTeam(updated);
-      saveTeam(updated);
+      saveCurrentTeam(updated);
     }
   };
 
@@ -553,7 +561,7 @@ export default function SoccerTimeTracker() {
     }
   };
 
-  const handleEndGame = () => {
+  const handleEndGame = async () => {
     if (gameTime > 0 && currentTeam) {
       if (window.confirm('Game ended. Save to history?')) {
         const playerStats = currentTeam.players.map(p => ({
@@ -566,7 +574,8 @@ export default function SoccerTimeTracker() {
           yellowCards: playerYellowCards[p.id] || 0
         }));
 
-        saveGame({
+        // Keep the game on screen if it couldn't be saved, so the result isn't lost.
+        const saved = await saveGame({
           id: crypto.randomUUID(),
           date: new Date().toISOString(),
           name: gameName,
@@ -576,15 +585,14 @@ export default function SoccerTimeTracker() {
           totalTime: gameTime,
           playerStats
         }, currentTeam.id);
+        if (!saved) return;
 
         // Mark red carded players as unavailable, and remove borrowed players
         const redCardedPlayerIds = Object.keys(playerRedCards).filter(id => playerRedCards[id] > 0);
         const updatedPlayers = currentTeam.players
           .filter(p => !p.isBorrowed)
           .map(p => redCardedPlayerIds.includes(p.id) ? { ...p, isUnavailable: true } : p);
-        const updatedTeam = { ...currentTeam, players: updatedPlayers };
-        setCurrentTeam(updatedTeam);
-        saveTeam(updatedTeam);
+        await saveCurrentTeam({ ...currentTeam, players: updatedPlayers });
 
         cancelGame();
         setGameName('');
@@ -594,9 +602,7 @@ export default function SoccerTimeTracker() {
     }
     // Even if not saving, remove borrowed players if a game was played
     if (gameTime > 0 && currentTeam) {
-      const updatedTeam = { ...currentTeam, players: currentTeam.players.filter(p => !p.isBorrowed) };
-      setCurrentTeam(updatedTeam);
-      saveTeam(updatedTeam);
+      await saveCurrentTeam({ ...currentTeam, players: currentTeam.players.filter(p => !p.isBorrowed) });
     }
     cancelGame();
     setGameName('');

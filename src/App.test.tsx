@@ -51,6 +51,8 @@ describe('SoccerTimeTracker Substitution Tests', () => {
     // 1. Create Team
     fireEvent.change(teamNameInput, { target: { value: 'Test Team' } });
     fireEvent.click(screen.getByText('Create'));
+    // The team is only opened once the save resolves, so wait for that view.
+    await screen.findByPlaceholderText('First name');
 
     // 2. Add Players for 1-4-4-2 (GK, RB, CBx2, LB, RM, CMx2, LM, CFx2)
     const positions = ['GK', 'RB', 'CB', 'CB', 'LB', 'RM', 'CM', 'CM', 'LM', 'CF', 'CF'];
@@ -160,6 +162,8 @@ describe('SoccerTimeTracker Player Management', () => {
     const teamNameInput = await screen.findByPlaceholderText('Team name');
     fireEvent.change(teamNameInput, { target: { value: 'Test Team' } });
     fireEvent.click(screen.getByText('Create'));
+    // The team is only opened once the save resolves, so wait for that view.
+    await screen.findByPlaceholderText('First name');
   };
 
   test('creates a player with a secondary position', async () => {
