@@ -2,17 +2,17 @@ import { renderHook, act } from '@testing-library/react';
 import { useTeamStorage } from './hooks/useTeamStorage';
 import { Team } from './types';
 
-// Mock the Supabase client with a chainable, awaitable query builder that
+// Mock the Neon client with a chainable, awaitable query builder that
 // resolves to empty data. These tests cover the hook's optimistic local state.
 // Plain functions (not vi.fn) so Vitest mock resets doesn't wipe them between tests.
-vi.mock('./supabaseClient', () => {
+vi.mock('./neonClient', () => {
   const q: any = {};
   for (const m of ['select', 'order', 'upsert', 'insert', 'delete', 'eq', 'not']) {
     q[m] = () => q;
   }
   q.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
     resolve({ data: [], error: null });
-  return { supabase: { from: () => q } };
+  return { neon: { from: () => q } };
 });
 
 describe('useTeamStorage', () => {

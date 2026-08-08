@@ -1,6 +1,6 @@
-import { supabase } from './supabaseClient';
+import { neon } from './neonClient';
 
-// Old localStorage keys used by the pre-Supabase version of the app.
+// Old localStorage keys used by the pre-cloud version of the app.
 const OLD_TEAMS_KEY = 'teams';
 const OLD_HISTORY_KEY = 'gameHistory';
 const MIGRATED_FLAG = 'migrated_v1';
@@ -34,7 +34,7 @@ export const migrateLocalData = async (): Promise<{ teams: number; players: numb
 
   for (const t of oldTeams) {
     const teamId = crypto.randomUUID();
-    const { error: teamErr } = await supabase.from('teams').insert({
+    const { error: teamErr } = await neon.from('teams').insert({
       id: teamId,
       name: t.name,
       default_game_duration: t.defaultGameDuration ?? null,
@@ -60,7 +60,7 @@ export const migrateLocalData = async (): Promise<{ teams: number; players: numb
         is_unavailable: p.isUnavailable ?? false,
         is_borrowed: p.isBorrowed ?? false,
       }));
-      const { error: pErr } = await supabase.from('players').insert(rows);
+      const { error: pErr } = await neon.from('players').insert(rows);
       if (pErr) console.error('Migration: failed to insert players for', t.name, pErr);
       else players += rows.length;
     }
@@ -78,7 +78,7 @@ export const migrateLocalData = async (): Promise<{ teams: number; players: numb
       total_time: g.totalTime,
       player_stats: g.playerStats ?? [],
     }));
-    const { error: gErr } = await supabase.from('games').insert(gameRows);
+    const { error: gErr } = await neon.from('games').insert(gameRows);
     if (gErr) console.error('Migration: failed to insert games', gErr);
     else games = gameRows.length;
   }

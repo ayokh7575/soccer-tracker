@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
+import { neon } from '../neonClient';
 
 export interface PlayerStat {
   id: string;
@@ -50,7 +50,7 @@ export const useGameHistory = () => {
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    const { data, error } = await supabase
+    const { data, error } = await neon
       .from('games')
       .select('*')
       .order('played_at', { ascending: false });
@@ -66,13 +66,13 @@ export const useGameHistory = () => {
   // teamId links the game to a team when known (normal play); imported games pass null.
   const saveGame = useCallback(async (game: GameRecord, teamId: string | null = null) => {
     setHistory(prev => [game, ...prev]);
-    const { error } = await supabase.from('games').insert(gameToRow(game, teamId));
+    const { error } = await neon.from('games').insert(gameToRow(game, teamId));
     if (error) console.error('Failed to save game:', error);
   }, []);
 
   const deleteGame = useCallback(async (id: string) => {
     setHistory(prev => prev.filter(g => g.id !== id));
-    const { error } = await supabase.from('games').delete().eq('id', id);
+    const { error } = await neon.from('games').delete().eq('id', id);
     if (error) console.error('Failed to delete game:', error);
   }, []);
 
@@ -114,7 +114,7 @@ export const useGameHistory = () => {
       setHistory(updated);
 
       if (toPersist.length > 0) {
-        const { error } = await supabase
+        const { error } = await neon
           .from('games')
           .upsert(toPersist.map(g => gameToRow(g, null)));
         if (error) console.error('Failed to import games:', error);

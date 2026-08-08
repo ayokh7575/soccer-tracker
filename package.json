@@ -4,7 +4,8 @@
   "private": true,
   "homepage": "https://ayokh7575.github.io/soccer-tracker",
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
+    "@neondatabase/auth": "^0.4.2-beta",
+    "@neondatabase/neon-js": "^0.6.2-beta",
     "lucide-react": "^0.563.0",
     "mobile-drag-drop": "^2.3.0-rc.2",
     "react": "^19.2.4",

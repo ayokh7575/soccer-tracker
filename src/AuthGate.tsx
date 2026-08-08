@@ -1,29 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Session } from '@supabase/supabase-js';
-import { supabase } from './supabaseClient';
+import React, { useState, useCallback } from 'react';
+import { neon } from './neonClient';
 import { CLUB_NAME, CLUB_LOGO } from './accessConfig';
 
-// Who can sign in is controlled in Supabase (Authentication settings), not here.
-
 export default function AuthGate({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [checking, setChecking] = useState(true);
+  const session = neon.auth.useSession();
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setChecking(false);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
 
   // Step 1: email a 6-digit code.
   const sendCode = useCallback(
@@ -31,27 +16,29 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       e.preventDefault();
       setError('');
       setSubmitting(true);
-      const { error } = await supabase.auth.signInWithOtp({ email: email.trim() });
+      const { error } = await neon.auth.emailOtp.sendVerificationOtp({
+        email: email.trim(),
+        type: 'sign-in',
+      });
       setSubmitting(false);
-      if (error) setError(error.message);
+      if (error) setError(error.message || 'Could not send the code. Please try again.');
       else setCodeSent(true);
     },
     [email]
   );
 
-  // Step 2: verify the code; onAuthStateChange picks up the new session.
+  // Step 2: verify the code; useSession picks up the new session automatically.
   const verifyCode = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       setError('');
       setSubmitting(true);
-      const { error } = await supabase.auth.verifyOtp({
+      const { error } = await neon.auth.signIn.emailOtp({
         email: email.trim(),
-        token: token.trim(),
-        type: 'email',
+        otp: token.trim(),
       });
       setSubmitting(false);
-      if (error) setError(error.message);
+      if (error) setError(error.message || 'That code was not accepted. Please try again.');
     },
     [email, token]
   );
@@ -62,8 +49,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setError('');
   };
 
-  if (checking) return null;
-  if (session) return <>{children}</>;
+  if (session.isPending) return null;
+  if (session.data) return <>{children}</>;
 
   return (
     <div className="min-h-screen bg-green-50 flex items-center justify-center p-4">
@@ -132,8 +119,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         )}
 
         <p className="text-xs text-gray-400 text-center mt-4">
-          v{__APP_VERSION__} &copy; {new Date().getFullYear()} Alen
-          Yokhanis
+          v{__APP_VERSION__} &copy; {new Date().getFullYear()} Alen Yokhanis
         </p>
       </div>
     </div>

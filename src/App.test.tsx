@@ -2,11 +2,11 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import App from './App';
 
-// Mock Supabase: an authenticated session (so AuthGate renders the app) and a
-// chainable, awaitable query builder (plain functions so resetMocks won't wipe
+// Mock Neon: an authenticated session (so AuthGate renders the app) and a
+// chainable, awaitable query builder (plain functions so mock resets won't wipe
 // them). The app's flows are driven by in-memory React state, so the data layer
 // being a no-op here is fine for these UI tests.
-vi.mock('./supabaseClient', () => {
+vi.mock('./neonClient', () => {
   const q: any = {};
   for (const m of ['select', 'order', 'upsert', 'insert', 'delete', 'eq', 'not']) {
     q[m] = () => q;
@@ -14,13 +14,16 @@ vi.mock('./supabaseClient', () => {
   q.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
     resolve({ data: [], error: null });
   return {
-    supabase: {
+    neon: {
       from: () => q,
       auth: {
-        getSession: () =>
-          Promise.resolve({ data: { session: { user: { id: 'test-user' } } } }),
-        onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
-        signOut: () => Promise.resolve({ error: null }),
+        useSession: () => ({
+          isPending: false,
+          data: { user: { id: 'test-user', email: 'test@example.com' } },
+        }),
+        signOut: () => Promise.resolve(),
+        emailOtp: { sendVerificationOtp: async () => ({ error: null }) },
+        signIn: { emailOtp: async () => ({ error: null }) },
       },
     },
   };

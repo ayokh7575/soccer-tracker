@@ -9,8 +9,7 @@ import { PlayerRow } from './PlayerRow';
 import { Team, Player } from './types';
 import { GameLive } from './GameLive';
 import { UserManual } from './UserManual';
-import AuthGate from './AuthGate';
-import { supabase } from './supabaseClient';
+import { neon } from './neonClient';
 import { hasLocalDataToMigrate, migrateLocalData } from './migrateLocalData';
 import './index.css';
 
@@ -1590,7 +1589,6 @@ export default function SoccerTimeTracker() {
   };
 
   return (
-    <AuthGate>
     <div className="min-h-screen bg-gray-100 flex flex-col">
       <div className="flex-1">
         {view === 'home' && renderHome()}
@@ -1665,13 +1663,12 @@ export default function SoccerTimeTracker() {
           <BookOpen size={12} /> User Manual
         </button>
         <button
-          onClick={() => supabase.auth.signOut()}
+          onClick={() => neon.auth.signOut()}
           className="ml-4 text-blue-500 hover:underline"
         >
           Sign out
         </button>
       </footer>
     </div>
-    </AuthGate>
   );
 }

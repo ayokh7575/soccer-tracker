@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
+import { neon } from '../neonClient';
 import { Team, Player } from '../types';
 
 const rowToPlayer = (p: any): Player => ({
@@ -29,7 +29,7 @@ export const useTeamStorage = () => {
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    const { data, error } = await supabase
+    const { data, error } = await neon
       .from('teams')
       .select('*, players(*)')
       .order('created_at', { ascending: true });
@@ -48,7 +48,7 @@ export const useTeamStorage = () => {
     // Optimistic local update so the UI stays responsive.
     setTeams(prev => [...prev.filter(t => t.id !== team.id), team]);
 
-    const { error: teamErr } = await supabase.from('teams').upsert({
+    const { error: teamErr } = await neon.from('teams').upsert({
       id: team.id,
       name: team.name,
       default_game_duration: team.defaultGameDuration ?? null,
@@ -72,13 +72,13 @@ export const useTeamStorage = () => {
         is_unavailable: p.isUnavailable ?? false,
         is_borrowed: p.isBorrowed ?? false,
       }));
-      const { error: upErr } = await supabase.from('players').upsert(rows);
+      const { error: upErr } = await neon.from('players').upsert(rows);
       if (upErr) console.error('Failed to save players:', upErr);
     }
 
     // Reconcile: delete players that were removed locally.
     const keepIds = players.map(p => p.id);
-    let del = supabase.from('players').delete().eq('team_id', team.id);
+    let del = neon.from('players').delete().eq('team_id', team.id);
     if (keepIds.length > 0) del = del.not('id', 'in', `(${keepIds.join(',')})`);
     const { error: delErr } = await del;
     if (delErr) console.error('Failed to reconcile players:', delErr);
@@ -86,7 +86,7 @@ export const useTeamStorage = () => {
 
   const deleteTeam = useCallback(async (teamId: string) => {
     setTeams(prev => prev.filter(t => t.id !== teamId));
-    const { error } = await supabase.from('teams').delete().eq('id', teamId);
+    const { error } = await neon.from('teams').delete().eq('id', teamId);
     if (error) console.error('Failed to delete team:', error);
   }, []);
 
