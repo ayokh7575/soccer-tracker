@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { neon } from '../neonClient';
+import { friendlyError } from '../errors';
 import { Team, Player } from '../types';
 
 const rowToPlayer = (p: any): Player => ({
@@ -27,20 +28,36 @@ const rowToTeam = (r: any): Team => ({
 export const useTeamStorage = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    const { data, error } = await neon
+    const { data, error: err } = await neon
       .from('teams')
       .select('*, players(*)')
       .order('created_at', { ascending: true });
-    if (error) console.error('Failed to load teams:', error);
-    else setTeams((data ?? []).map(rowToTeam));
+    if (err) {
+      console.error('Failed to load teams:', err);
+      setError(friendlyError(err, 'Could not load your teams. Please try again.'));
+    } else {
+      setTeams((data ?? []).map(rowToTeam));
+    }
     setLoading(false);
   }, []);
 
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // A write failed: surface why, then resync from the server so the optimistic
+  // local state can't keep showing changes that were actually rejected.
+  const handleWriteFailure = useCallback(
+    async (err: any, context: string, fallback: string) => {
+      console.error(context, err);
+      setError(friendlyError(err, fallback));
+      await reload();
+    },
+    [reload]
+  );
 
   // Persists the whole team: upserts the team row, upserts its players, and
   // deletes any players no longer in the array (reconciles DB to local state).
@@ -55,7 +72,7 @@ export const useTeamStorage = () => {
       players_per_side: team.playersPerSide ?? null,
     });
     if (teamErr) {
-      console.error('Failed to save team:', teamErr);
+      await handleWriteFailure(teamErr, 'Failed to save team:', 'Could not save the team. Please try again.');
       return;
     }
 
@@ -73,7 +90,10 @@ export const useTeamStorage = () => {
         is_borrowed: p.isBorrowed ?? false,
       }));
       const { error: upErr } = await neon.from('players').upsert(rows);
-      if (upErr) console.error('Failed to save players:', upErr);
+      if (upErr) {
+        await handleWriteFailure(upErr, 'Failed to save players:', 'Could not save the players. Please try again.');
+        return;
+      }
     }
 
     // Reconcile: delete players that were removed locally.
@@ -81,14 +101,20 @@ export const useTeamStorage = () => {
     let del = neon.from('players').delete().eq('team_id', team.id);
     if (keepIds.length > 0) del = del.not('id', 'in', `(${keepIds.join(',')})`);
     const { error: delErr } = await del;
-    if (delErr) console.error('Failed to reconcile players:', delErr);
-  }, []);
+    if (delErr) {
+      await handleWriteFailure(delErr, 'Failed to reconcile players:', 'Could not update the squad. Please try again.');
+    }
+  }, [handleWriteFailure]);
 
   const deleteTeam = useCallback(async (teamId: string) => {
     setTeams(prev => prev.filter(t => t.id !== teamId));
-    const { error } = await neon.from('teams').delete().eq('id', teamId);
-    if (error) console.error('Failed to delete team:', error);
-  }, []);
+    const { error: err } = await neon.from('teams').delete().eq('id', teamId);
+    if (err) {
+      await handleWriteFailure(err, 'Failed to delete team:', 'Could not delete the team. Please try again.');
+    }
+  }, [handleWriteFailure]);
 
-  return { teams, loading, saveTeam, deleteTeam, reload };
+  const clearError = useCallback(() => setError(null), []);
+
+  return { teams, loading, error, clearError, saveTeam, deleteTeam, reload };
 };

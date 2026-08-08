@@ -107,8 +107,17 @@ export default function SoccerTimeTracker() {
   const [playerFilterPosition, setPlayerFilterPosition] = useState('');
 
   // Custom Hooks
-  const { teams, loading: teamsLoading, saveTeam, deleteTeam, reload: reloadTeams } = useTeamStorage();
-  const { history, saveGame, deleteGame: deleteGameHistory, importGames, reload: reloadHistory } = useGameHistory();
+  const {
+    teams, loading: teamsLoading, error: teamsError, clearError: clearTeamsError,
+    saveTeam, deleteTeam, reload: reloadTeams,
+  } = useTeamStorage();
+  const {
+    history, error: historyError, clearError: clearHistoryError,
+    saveGame, deleteGame: deleteGameHistory, importGames, reload: reloadHistory,
+  } = useGameHistory();
+
+  const dataError = teamsError || historyError;
+  const dismissDataError = () => { clearTeamsError(); clearHistoryError(); };
 
   const [showMigrate, setShowMigrate] = useState(false);
   useEffect(() => { setShowMigrate(hasLocalDataToMigrate()); }, []);
@@ -1590,6 +1599,21 @@ export default function SoccerTimeTracker() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
+      {dataError && (
+        <div
+          role="alert"
+          className="bg-red-50 border-b border-red-300 px-4 py-3 flex items-start justify-between gap-4"
+        >
+          <p className="text-sm text-red-800">{dataError}</p>
+          <button
+            onClick={dismissDataError}
+            aria-label="Dismiss error"
+            className="text-red-700 text-sm font-semibold hover:underline whitespace-nowrap"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       <div className="flex-1">
         {view === 'home' && renderHome()}
         {view === 'team-detail' && renderTeamDetail()}
