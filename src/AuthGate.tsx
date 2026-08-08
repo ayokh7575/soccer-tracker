@@ -1,14 +1,41 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { neon } from './neonClient';
 import { CLUB_NAME, CLUB_LOGO } from './accessConfig';
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const session = neon.auth.useSession();
+  const userId = session.data?.user?.id;
+  const userEmail = session.data?.user?.email;
+  const [access, setAccess] = useState<'checking' | 'allowed' | 'denied'>('checking');
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Neon Auth cannot restrict who signs up yet, so anyone can create an account.
+  // Ask the database whether this account is on the allowlist and, if not, say so
+  // plainly instead of dropping them into an app where every action fails.
+  useEffect(() => {
+    if (!userId) {
+      setAccess('checking');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await neon.rpc('is_allowed');
+      if (cancelled) return;
+      if (error) {
+        // Row-Level Security still enforces access on every query, so a failed
+        // check should not lock a legitimate user out of the UI.
+        console.error('Access check failed:', error);
+        setAccess('allowed');
+      } else {
+        setAccess(data === true ? 'allowed' : 'denied');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
 
   // Step 1: email a 6-digit code.
   const sendCode = useCallback(
@@ -50,7 +77,34 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   };
 
   if (session.isPending) return null;
-  if (session.data) return <>{children}</>;
+
+  if (session.data) {
+    if (access === 'checking') return null;
+    if (access === 'allowed') return <>{children}</>;
+
+    return (
+      <div className="min-h-screen bg-green-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm text-center">
+          <div className="flex justify-center mb-4">
+            <img src={CLUB_LOGO} alt={CLUB_NAME} className="w-24 h-24 object-contain" />
+          </div>
+          <h1 className="text-2xl font-bold text-green-800 mb-2">{CLUB_NAME}</h1>
+          <p className="text-gray-700 font-semibold mb-2">Access not enabled</p>
+          <p className="text-gray-500 text-sm mb-6">
+            {userEmail ? <><span className="font-medium">{userEmail}</span> is not </> : 'This account is not '}
+            set up to use this app yet. Ask the administrator to enable access for
+            your email address.
+          </p>
+          <button
+            onClick={() => neon.auth.signOut()}
+            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-green-50 flex items-center justify-center p-4">
