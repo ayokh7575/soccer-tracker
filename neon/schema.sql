@@ -2,6 +2,9 @@
 -- Run this in the Neon Console → SQL Editor (one time per project).
 -- Safe to re-run: tables use "if not exists" and policies are dropped/recreated.
 --
+-- NOTE: run neon/allowlist.sql after this file. It recreates the three policies
+-- below with an additional invite-only check, so it supersedes them.
+--
 -- Ported from the Supabase schema. Differences:
 --   * Identity comes from Managed Better Auth via the Data API's JWT.
 --     auth.user_id() returns the JWT 'sub' claim as text (auth.uid() would
