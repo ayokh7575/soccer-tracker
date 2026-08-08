@@ -24,3 +24,6 @@ yarn-error.log*
 node_modules/
 build/
 .DS_Store
+
+# vite build output
+dist

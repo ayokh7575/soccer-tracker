@@ -4,8 +4,8 @@ import { useGameHistory, GameRecord } from './useGameHistory';
 // Mock the Supabase client with a chainable, awaitable query builder that
 // resolves to empty data. The hook's optimistic local-state updates (and the
 // in-memory importGames merge logic) are what these tests exercise.
-// Plain functions (not jest.fn) so CRA's resetMocks doesn't wipe them between tests.
-jest.mock('../supabaseClient', () => {
+// Plain functions (not vi.fn) so Vitest mock resets doesn't wipe them between tests.
+vi.mock('../supabaseClient', () => {
   const q: any = {};
   for (const m of ['select', 'order', 'upsert', 'insert', 'delete', 'eq', 'not']) {
     q[m] = () => q;

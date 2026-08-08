@@ -132,7 +132,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         )}
 
         <p className="text-xs text-gray-400 text-center mt-4">
-          v{process.env.REACT_APP_VERSION || '0.1.0'} &copy; {new Date().getFullYear()} Alen
+          v{__APP_VERSION__} &copy; {new Date().getFullYear()} Alen
           Yokhanis
         </p>
       </div>

@@ -3,11 +3,11 @@ import { useGameTimer } from './hooks/useGameTimer';
 
 describe('useGameTimer', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('should initialize with default values', () => {
@@ -45,7 +45,7 @@ describe('useGameTimer', () => {
 
     // Advance time by 10 seconds
     act(() => {
-      jest.advanceTimersByTime(10000);
+      vi.advanceTimersByTime(10000);
     });
 
     expect(result.current.gameTime).toBe(10);
@@ -68,7 +68,7 @@ describe('useGameTimer', () => {
 
     // Time shouldn't advance when paused
     act(() => {
-      jest.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(5000);
     });
     expect(result.current.gameTime).toBe(0);
 
@@ -87,7 +87,7 @@ describe('useGameTimer', () => {
 
     // Advance to 40 minutes (2400 seconds)
     act(() => {
-      jest.advanceTimersByTime(2400 * 1000);
+      vi.advanceTimersByTime(2400 * 1000);
     });
 
     expect(result.current.gameTime).toBe(2400);
@@ -103,7 +103,7 @@ describe('useGameTimer', () => {
 
     // Advance to half-time (2400 seconds)
     act(() => {
-      jest.advanceTimersByTime(2400 * 1000);
+      vi.advanceTimersByTime(2400 * 1000);
     });
     expect(result.current.gameState).toBe('paused');
 
@@ -112,7 +112,7 @@ describe('useGameTimer', () => {
       result.current.togglePlayPause();
     });
     act(() => {
-      jest.advanceTimersByTime(2400 * 1000);
+      vi.advanceTimersByTime(2400 * 1000);
     });
 
     expect(result.current.gameTime).toBe(4800);
@@ -124,7 +124,7 @@ describe('useGameTimer', () => {
     
     act(() => {
       result.current.startGame(['p1'], { p1: 0 });
-      jest.advanceTimersByTime(10000);
+      vi.advanceTimersByTime(10000);
     });
 
     act(() => {

@@ -1,15 +1,12 @@
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
-// allows you to do things like:
+// jest-dom adds custom matchers for asserting on DOM nodes, e.g.
 // expect(element).toHaveTextContent(/react/i)
-// learn more: https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom';
-import { randomUUID, webcrypto } from 'crypto';
+import '@testing-library/jest-dom/vitest';
+import { randomUUID, webcrypto } from 'node:crypto';
 
-// jsdom / Node 16 don't expose global crypto.randomUUID, which the app uses to
-// generate IDs. Polyfill it so components work under test.
-if (typeof (global as any).crypto === 'undefined') {
-  (global as any).crypto = webcrypto;
+// Ensure crypto.randomUUID exists in the test environment (the app uses it for ids).
+if (typeof (globalThis as any).crypto === 'undefined') {
+  (globalThis as any).crypto = webcrypto;
 }
-if (typeof (global as any).crypto.randomUUID !== 'function') {
-  (global as any).crypto.randomUUID = randomUUID;
+if (typeof (globalThis as any).crypto.randomUUID !== 'function') {
+  (globalThis as any).crypto.randomUUID = randomUUID;
 }

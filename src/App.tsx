@@ -94,7 +94,7 @@ export default function SoccerTimeTracker() {
   const secondaryPositionRef = useRef<HTMLDivElement>(null);
   const addPlayerSectionRef = useRef<HTMLDivElement>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'totalTime', direction: 'desc' });
-  const version = process.env.REACT_APP_VERSION || '0.1.0';
+  const version = __APP_VERSION__;
   const isDragging = useRef(false);
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);

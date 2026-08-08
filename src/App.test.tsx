@@ -6,7 +6,7 @@ import App from './App';
 // chainable, awaitable query builder (plain functions so resetMocks won't wipe
 // them). The app's flows are driven by in-memory React state, so the data layer
 // being a no-op here is fine for these UI tests.
-jest.mock('./supabaseClient', () => {
+vi.mock('./supabaseClient', () => {
   const q: any = {};
   for (const m of ['select', 'order', 'upsert', 'insert', 'delete', 'eq', 'not']) {
     q[m] = () => q;
@@ -26,7 +26,7 @@ jest.mock('./supabaseClient', () => {
   };
 });
 
-jest.mock('./UserManual', () => ({
+vi.mock('./UserManual', () => ({
   UserManual: () => <div>User Manual Mock</div>
 }));
 
@@ -34,8 +34,8 @@ jest.mock('./UserManual', () => ({
 window.HTMLElement.prototype.scrollIntoView = function() {};
 
 beforeEach(() => {
-  window.confirm = jest.fn(() => true);
-  window.alert = jest.fn();
+  window.confirm = vi.fn(() => true);
+  window.alert = vi.fn();
 });
 
 describe('SoccerTimeTracker Substitution Tests', () => {

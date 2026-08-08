@@ -5,57 +5,41 @@
   "homepage": "https://ayokh7575.github.io/soccer-tracker",
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^13.5.0",
-    "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.126",
-    "@types/react": "^19.2.13",
-    "@types/react-dom": "^19.2.3",
     "lucide-react": "^0.563.0",
     "mobile-drag-drop": "^2.3.0-rc.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-markdown": "^10.1.0",
-    "react-scripts": "5.0.1",
-    "typescript": "^4.9.5",
-    "web-vitals": "^2.1.4"
+    "react-markdown": "^10.1.0"
   },
   "scripts": {
-    "start": "REACT_APP_VERSION=$npm_package_version react-scripts start",
-    "build": "REACT_APP_VERSION=$npm_package_version react-scripts build",
-    "test": "react-scripts test",
+    "start": "vite",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "generate-icons": "node scripts/generate-icons.js",
-    "eject": "react-scripts eject",
     "predeploy": "npm version patch && npm run build",
-    "deploy": "gh-pages -d build"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "deploy": "gh-pages -d dist"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.18",
     "@tailwindcss/typography": "^0.5.19",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^13.5.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.13",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.24",
     "gh-pages": "^6.3.0",
+    "jsdom": "^25.0.1",
     "postcss": "^8.5.6",
     "sharp": "^0.34.5",
-    "tailwindcss": "^3.4.1"
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^3.2.7"
   }
 }

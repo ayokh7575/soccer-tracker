@@ -27,7 +27,7 @@ export const UserManual: React.FC<UserManualProps> = ({ onBack }) => {
   const [content, setContent] = useState('');
 
   useEffect(() => {
-    fetch(`${process.env.PUBLIC_URL}/USER_MANUAL.md`)
+    fetch(`${import.meta.env.BASE_URL}USER_MANUAL.md`)
       .then(response => response.text())
       .then(text => setContent(text.replace(/<a\s+name="[^"]*"><\/a>/g, '')))
       .catch(err => console.error('Error loading manual:', err));
@@ -48,7 +48,7 @@ export const UserManual: React.FC<UserManualProps> = ({ onBack }) => {
                 img: ({node, ...props}) => (
                     <img
                         {...props}
-                        src={props.src?.startsWith('http') ? props.src : `${process.env.PUBLIC_URL}/${props.src?.replace(/^\.\//, '')}`}
+                        src={props.src?.startsWith('http') ? props.src : `${import.meta.env.BASE_URL}${props.src?.replace(/^\.\//, '')}`}
                         alt={props.alt || ''}
                         className="my-4 rounded border border-gray-200 max-w-full"
                     />
