@@ -79,6 +79,11 @@ create policy game_access on public.games for all to authenticated
   using (owner_id = auth.user_id() and (select public.is_allowed()))
   with check (owner_id = auth.user_id() and (select public.is_allowed()));
 
+-- The Data API caches the schema, so it will not see is_allowed() (the app calls
+-- it via /rpc/is_allowed to decide whether to show the "access not enabled"
+-- screen) until the cache is reloaded.
+notify pgrst, 'reload schema';
+
 -- ============ MANAGING ACCESS ============
 -- Invite someone (they can then sign in and get their own private workspace):
 --   insert into public.allowed_emails (email, note) values ('coach@example.com', 'U16 coach');

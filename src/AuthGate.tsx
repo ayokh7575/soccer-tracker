@@ -13,6 +13,19 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Signing out must return to a clean email prompt: without this the gate
+  // re-renders with codeSent still true and shows the code step for the
+  // previous account.
+  useEffect(() => {
+    if (!userId) {
+      setCodeSent(false);
+      setToken('');
+      setEmail('');
+      setError('');
+      setSubmitting(false);
+    }
+  }, [userId]);
+
   // Neon Auth cannot restrict who signs up yet, so anyone can create an account.
   // Ask the database whether this account is on the allowlist and, if not, say so
   // plainly instead of dropping them into an app where every action fails.
