@@ -127,8 +127,22 @@ export default function SoccerTimeTracker() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error } = await neon.rpc('is_admin');
-      if (!cancelled && !error) setIsAdmin(data === true);
+      // Retry rather than treating a failed check as "not an admin": a single
+      // transient failure would otherwise hide the link for the whole session.
+      for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
+        try {
+          const { data, error } = await neon.rpc('is_admin');
+          if (cancelled) return;
+          if (!error) {
+            setIsAdmin(data === true);
+            return;
+          }
+          console.error('Admin check failed:', error);
+        } catch (err) {
+          console.error('Admin check failed:', err);
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
     })();
     return () => { cancelled = true; };
   }, []);
