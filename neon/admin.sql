@@ -31,7 +31,7 @@ set search_path = public, neon_auth
 as $$
   select u.email
   from neon_auth."user" u
-  where u.id = auth.user_id()::uuid;
+  where u.id = auth.uid() or u.id::text = auth.user_id();
 $$;
 
 -- Is the signed-in account an admin?
@@ -47,7 +47,7 @@ as $$
     from neon_auth."user" u
     join public.allowed_emails a
       on lower(a.email) = lower(u.email)
-    where u.id = auth.user_id()::uuid
+    where (u.id = auth.uid() or u.id::text = auth.user_id())
       and a.is_admin
       and coalesce(u.banned, false) = false
   );
