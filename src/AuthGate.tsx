@@ -56,13 +56,21 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       e.preventDefault();
       setError('');
       setSubmitting(true);
-      const { error } = await neon.auth.emailOtp.sendVerificationOtp({
-        email: email.trim(),
-        type: 'sign-in',
-      });
-      setSubmitting(false);
-      if (error) setError(error.message || 'Could not send the code. Please try again.');
-      else setCodeSent(true);
+      try {
+        const { error } = await neon.auth.emailOtp.sendVerificationOtp({
+          email: email.trim(),
+          type: 'sign-in',
+        });
+        if (error) setError(error.message || 'Could not send the code. Please try again.');
+        else setCodeSent(true);
+      } catch (err: any) {
+        // A thrown error (network, CORS, blocked cookies) must not leave the
+        // button stuck on "Sending…" with no explanation.
+        console.error('Failed to send code:', err);
+        setError(err?.message || 'Could not reach the sign-in service. Please try again.');
+      } finally {
+        setSubmitting(false);
+      }
     },
     [email]
   );
@@ -73,12 +81,20 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       e.preventDefault();
       setError('');
       setSubmitting(true);
-      const { error } = await neon.auth.signIn.emailOtp({
-        email: email.trim(),
-        otp: token.trim(),
-      });
-      setSubmitting(false);
-      if (error) setError(error.message || 'That code was not accepted. Please try again.');
+      try {
+        const { error } = await neon.auth.signIn.emailOtp({
+          email: email.trim(),
+          otp: token.trim(),
+        });
+        if (error) setError(error.message || 'That code was not accepted. Please try again.');
+      } catch (err: any) {
+        // A thrown error (network, CORS, blocked cookies) must not leave the
+        // button stuck on "Verifying…" with no explanation.
+        console.error('Failed to verify code:', err);
+        setError(err?.message || 'Could not reach the sign-in service. Please try again.');
+      } finally {
+        setSubmitting(false);
+      }
     },
     [email, token]
   );
