@@ -35,6 +35,9 @@ as $$
 $$;
 
 -- Is the signed-in account an admin?
+-- Returns the matched row's is_admin value directly. An earlier version tested
+-- `exists(... and a.is_admin)` and evaluated to false despite the flag being
+-- true, so the flag is read as a value rather than used as a predicate.
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -42,15 +45,15 @@ stable
 security definer
 set search_path = public, neon_auth
 as $$
-  select exists (
-    select 1
+  select coalesce((
+    select a.is_admin
     from neon_auth."user" u
     join public.allowed_emails a
       on lower(a.email) = lower(u.email)
     where (u.id = auth.uid() or u.id::text = auth.user_id())
-      and a.is_admin
       and coalesce(u.banned, false) = false
-  );
+    limit 1
+  ), false);
 $$;
 
 grant execute on function public.current_email() to authenticated;

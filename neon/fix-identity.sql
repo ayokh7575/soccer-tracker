@@ -38,6 +38,9 @@ as $$
   );
 $$;
 
+-- Reads the matched row's is_admin value rather than using it as a predicate:
+-- the `exists(... and a.is_admin)` form evaluated to false despite the flag
+-- being true.
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -45,15 +48,15 @@ stable
 security definer
 set search_path = public, neon_auth
 as $$
-  select exists (
-    select 1
+  select coalesce((
+    select a.is_admin
     from neon_auth."user" u
     join public.allowed_emails a
       on lower(a.email) = lower(u.email)
     where (u.id = auth.uid() or u.id::text = auth.user_id())
-      and a.is_admin
       and coalesce(u.banned, false) = false
-  );
+    limit 1
+  ), false);
 $$;
 
 grant execute on function public.current_email() to authenticated;
