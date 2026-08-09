@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, ChevronUp, ChevronDown, Search, BookOpen } from 'lucide-react';
+import { Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, ChevronUp, ChevronDown, Search, BookOpen, ShieldCheck } from 'lucide-react';
 import { useTeamStorage } from './hooks/useTeamStorage';
 import { useGameTimer } from './hooks/useGameTimer';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
@@ -9,6 +9,7 @@ import { PlayerRow } from './PlayerRow';
 import { Team, Player } from './types';
 import { GameLive } from './GameLive';
 import { UserManual } from './UserManual';
+import { AdminUsers } from './AdminUsers';
 import { neon } from './neonClient';
 import { hasLocalDataToMigrate, migrateLocalData } from './migrateLocalData';
 import './index.css';
@@ -118,6 +119,19 @@ export default function SoccerTimeTracker() {
 
   const dataError = teamsError || historyError;
   const dismissDataError = () => { clearTeamsError(); clearHistoryError(); };
+
+  // Admins get an in-app screen for managing who can use the app. The database
+  // enforces this too, so a non-admin who forced the view would see nothing.
+  const currentEmail = neon.auth.useSession().data?.user?.email;
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await neon.rpc('is_admin');
+      if (!cancelled && !error) setIsAdmin(data === true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const [showMigrate, setShowMigrate] = useState(false);
   useEffect(() => { setShowMigrate(hasLocalDataToMigrate()); }, []);
@@ -1683,6 +1697,9 @@ export default function SoccerTimeTracker() {
         {view === 'history' && renderHistory()}
         {view === 'player-stats' && renderPlayerStats()}
         {view === 'manual' && <UserManual onBack={() => setView('home')} />}
+        {view === 'admin' && isAdmin && (
+          <AdminUsers onBack={() => setView('home')} currentEmail={currentEmail} />
+        )}
       </div>
       <footer className="py-3 text-center text-xs text-gray-400">
         v{version} &copy; {new Date().getFullYear()} Alen Yokhanis
@@ -1692,6 +1709,14 @@ export default function SoccerTimeTracker() {
         >
           <BookOpen size={12} /> User Manual
         </button>
+        {isAdmin && (
+          <button
+            onClick={() => setView('admin')}
+            className="ml-4 text-blue-500 hover:underline inline-flex items-center gap-1"
+          >
+            <ShieldCheck size={12} /> Manage access
+          </button>
+        )}
         <button
           onClick={() => neon.auth.signOut()}
           className="ml-4 text-blue-500 hover:underline"

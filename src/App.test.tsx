@@ -16,6 +16,7 @@ vi.mock('./neonClient', () => {
   return {
     neon: {
       from: () => q,
+      rpc: async () => ({ data: false, error: null }),
       auth: {
         useSession: () => ({
           isPending: false,
