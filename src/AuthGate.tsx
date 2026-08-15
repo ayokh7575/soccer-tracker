@@ -209,9 +209,18 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             <form onSubmit={sendCode} className="space-y-4">
               <input
                 type="email"
+                inputMode="email"
+                autoComplete="email"
+                // Phone keyboards otherwise capitalise the first letter and can
+                // autocorrect in stray characters, producing an address the
+                // server rejects as malformed.
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={email}
                 onChange={(e) => {
-                  setEmail(e.target.value);
+                  // Strip whitespace anywhere, not just the ends.
+                  setEmail(e.target.value.replace(/\s/g, ''));
                   // Clear a stale failure as soon as the input is corrected.
                   if (error) setError('');
                 }}
