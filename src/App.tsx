@@ -127,21 +127,26 @@ export default function SoccerTimeTracker() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Retry rather than treating a failed check as "not an admin": a single
-      // transient failure would otherwise hide the link for the whole session.
-      for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
+      // Retry until the check succeeds, including when it returns false: while
+      // the database is waking from scale-to-zero the JWT cannot be verified
+      // yet, so this returns false for a genuine admin. Treating that first
+      // answer as final hid the link for the whole session.
+      const delays = [400, 800, 1600, 3000];
+      for (let attempt = 0; attempt <= delays.length && !cancelled; attempt++) {
         try {
           const { data, error } = await neon.rpc('is_admin');
           if (cancelled) return;
-          if (!error) {
-            setIsAdmin(data === true);
+          if (!error && data === true) {
+            setIsAdmin(true);
             return;
           }
-          console.error('Admin check failed:', error);
+          if (error) console.error('Admin check failed:', error);
         } catch (err) {
           console.error('Admin check failed:', err);
         }
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        if (attempt < delays.length) {
+          await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+        }
       }
     })();
     return () => { cancelled = true; };
