@@ -7,6 +7,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const userId = session.data?.user?.id;
   const userEmail = session.data?.user?.email;
   const [access, setAccess] = useState<'checking' | 'allowed' | 'denied'>('checking');
+  const [accessDetail, setAccessDetail] = useState<string>('');
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
   const [codeSent, setCodeSent] = useState(false);
@@ -36,16 +37,34 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     }
     let cancelled = false;
     (async () => {
-      const { data, error } = await neon.rpc('is_allowed');
-      if (cancelled) return;
-      if (error) {
-        // Row-Level Security still enforces access on every query, so a failed
-        // check should not lock a legitimate user out of the UI.
-        console.error('Access check failed:', error);
-        setAccess('allowed');
-      } else {
-        setAccess(data === true ? 'allowed' : 'denied');
+      // The database scales to zero when idle. On the first request after it
+      // wakes, the JWT cannot be verified yet, so auth.uid() is null and this
+      // returns false — which looks identical to "not on the allowlist". Retry
+      // before concluding denial, otherwise a legitimate user is turned away
+      // purely because they were the one who woke the database.
+      const delays = [400, 800, 1600, 3000];
+      for (let attempt = 0; attempt <= delays.length && !cancelled; attempt++) {
+        const { data, error } = await neon.rpc('is_allowed');
+        if (cancelled) return;
+        setAccessDetail(
+          `id=${userId ?? 'none'} result=${JSON.stringify(data)} err=${error ? (error.message || JSON.stringify(error)) : 'none'}`
+        );
+        if (data === true) {
+          setAccess('allowed');
+          return;
+        }
+        if (error) {
+          // Row-Level Security still enforces access on every query, so a failed
+          // check should not lock a legitimate user out of the UI.
+          console.error('Access check failed:', error);
+          setAccess('allowed');
+          return;
+        }
+        if (attempt < delays.length) {
+          await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+        }
       }
+      if (!cancelled) setAccess('denied');
     })();
     return () => { cancelled = true; };
   }, [userId]);
@@ -130,6 +149,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           >
             Sign out
           </button>
+          {accessDetail && (
+            <p className="mt-4 text-[10px] leading-tight text-gray-400 break-all font-mono">
+              {accessDetail}
+            </p>
+          )}
         </div>
       </div>
     );

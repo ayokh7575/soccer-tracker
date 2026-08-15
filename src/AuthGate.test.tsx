@@ -71,11 +71,24 @@ describe('AuthGate', () => {
     expect(await screen.findByText('App')).toBeInTheDocument();
   });
 
+  // Denial is only concluded after the retries that cover a database cold
+  // start, so this needs longer than the default timeout.
   test('explains when the account is not on the allowlist', async () => {
     h.session = signedIn;
     h.allowed = false;
     render(<AuthGate><div>App</div></AuthGate>);
-    expect(await screen.findByText('Access not enabled')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Access not enabled', undefined, { timeout: 15000 })
+    ).toBeInTheDocument();
     expect(screen.queryByText('App')).not.toBeInTheDocument();
-  });
+  }, 20000);
+
+  test('allows access when a retry succeeds after a cold start', async () => {
+    h.session = signedIn;
+    h.allowed = false; // first call fails as it would while the database wakes
+    render(<AuthGate><div>App</div></AuthGate>);
+    h.allowed = true;
+    expect(await screen.findByText('App', undefined, { timeout: 15000 })).toBeInTheDocument();
+    expect(screen.queryByText('Access not enabled')).not.toBeInTheDocument();
+  }, 20000);
 });
