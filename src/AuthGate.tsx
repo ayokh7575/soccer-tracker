@@ -179,7 +179,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                 autoComplete="one-time-code"
                 maxLength={6}
                 value={token}
-                onChange={(e) => setToken(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => {
+                  setToken(e.target.value.replace(/\D/g, ''));
+                  if (error) setError('');
+                }}
                 placeholder="123456"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center text-2xl tracking-[0.4em]"
                 autoFocus
@@ -207,7 +210,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  // Clear a stale failure as soon as the input is corrected.
+                  if (error) setError('');
+                }}
                 placeholder="you@example.com"
                 required
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center text-lg"
