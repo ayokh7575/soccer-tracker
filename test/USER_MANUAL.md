@@ -1,0 +1,182 @@
+# Soccer Time Tracker - User Manual
+
+Welcome to the Soccer Time Tracker! This application helps you manage your soccer team, track game time, substitutions, goals, and cards, and view historical statistics.
+
+## Table of Contents
+1.  [Getting Started](#getting-started)
+2.  [Managing Teams](#managing-teams)
+    *   [Creating a Team](#creating-a-team)
+    *   [Importing a Team](#importing-a-team)
+3.  [Managing Players](#managing-players)
+    *   [Adding Players](#adding-players)
+    *   [Editing Players](#editing-players)
+    *   [Player Availability](#player-availability)
+    *   [Borrowing a Player](#borrowing-a-player)
+4.  [Starting a Game](#starting-a-game)
+    *   [Formation Setup](#formation-setup)
+    *   [Auto-Assign Players](#auto-assign-players)
+5.  [Live Game Tracking](#live-game-tracking)
+    *   [Game Controls](#game-controls)
+    *   [Substitutions](#substitutions)
+    *   [Recording Events (Goals, Cards)](#recording-events)
+    *   [If the App Closes Mid-Game](#if-the-app-closes-mid-game)
+6.  [Game History & Statistics](#game-history--statistics)
+
+---
+
+## 1. Getting Started <a name="getting-started"></a>
+
+When you first open the application, you will be greeted by the **Access Gate**.
+1.  Enter your access code.
+2.  Click **Enter**.
+
+![Access Gate screen](./images/access-gate.png)
+
+
+Once authenticated, you will see the **Home Screen**. This is your central hub for managing teams and viewing past games.
+
+![Home screen](./images/home.png)
+
+---
+
+## 2. Managing Teams
+
+### Creating a Team
+1.  On the Home Screen, locate the **Create New Team** section.
+2.  Enter a **Team Name** (e.g., "Tigers FC").
+3.  Enter a **Default Duration** for games in minutes (e.g., "80").
+4.  Select **11-a-side** or **9-a-side** from the dropdown (defaults to 11-a-side).
+5.  Click the **Create** button.
+
+> The players-per-side setting determines which formations are available when you set up a game. It is also displayed next to the team name on the team page.
+
+### Importing a Team
+If you have a CSV file with your roster, you can import it directly.
+1.  Select **11-a-side** or **9-a-side** from the dropdown before importing.
+2.  Click the **Import Team CSV** button.
+3.  Select your CSV file.
+    *   **CSV Format:** `First Name, Last Name, Number, Position, Secondary Positions...`
+    *   *Example:* `John, Doe, 10, CF, RW;LW`
+
+---
+
+## 3. Managing Players
+
+Click on a team name from the "My Teams" list to enter the **Team Detail View**. The team name is shown with its players-per-side setting (e.g., *NCFC U16 (9-a-side)*). From here you can add, edit, and delete players.
+
+![Team Detail screen](./images/add-player.png)
+
+### Adding Players
+1.  Fill in the **First Name**, **Last Name**, and **Number**.
+2.  Select a **Primary Position** from the dropdown (e.g., GK, CB, CM, CF).
+3.  (Optional) Click **Secondary Positions** to select other positions the player can play.
+4.  Click **Add**.
+
+### Editing Players
+1.  Locate the player in the list.
+2.  Click the **Edit (Pencil)** icon next to their name.
+3.  The form at the top of the page will populate with their details.
+4.  Make your changes and click **Update**.
+
+### Player Availability
+If a player is absent for a game:
+1.  Click the **Ban/Block** icon next to their name.
+2.  The player will be grayed out and marked as `(Unavailable)`.
+3.  They will not be included in auto-assignments for the next game.
+
+### Borrowing a Player
+If you need a temporary player for a single game (e.g., a guest from another team):
+1.  Click the **Borrow Player** button at the top of the Team Detail View — it highlights in orange to indicate you are adding a temporary player.
+2.  Fill in the borrowed player's details and click **Add Borrowed**.
+3.  The borrowed player appears highlighted in orange in the player list so they are easy to identify at a glance.
+4.  Borrowed players are automatically removed from the squad after the game ends.
+
+![Borrow Player button highlighted in orange](./images/borrow-player.png)
+
+---
+
+## 4. Starting a Game
+
+Once players have been added, the **Set Formation & Start Game** button will appear at the bottom of the Team Detail View. Any borrowed players are shown highlighted in a different colour. Click the button to proceed to formation setup.
+
+![Borrowed player highlighted and Set Formation & Start Game button active](./images/goto-set-formation-start-game.png)
+
+![Formation Setup screen](./images/formation-setup.png)
+
+### Formation Setup
+1.  **Select Formation:** Choose from the available formations for your team type:
+    *   **11-a-side:** `1-4-4-2` or `1-4-3-3`
+    *   **9-a-side:** `1-3-3-2` or `1-4-3-1`
+2.  **Assign Players:**
+    *   **Drag and Drop:** Drag players from the "Available Players" list onto a position on the field.
+    *   **Auto-Assign:** Click **Auto-Assign Players** to automatically fill the field based on player positions.
+
+### Auto-Assign Players
+Click the **Auto-Assign Players** button to automatically fill the formation slots with available players based on their primary and secondary positions.
+
+### Game Settings
+1.  **Game Name:** Enter a name for this match (e.g., "vs Lions").
+2.  **Duration:** Adjust the game duration if different from the default.
+3.  Click **Start Game**.
+
+---
+
+## 5. Live Game Tracking
+
+This is the main screen you will use during the match.
+
+![Live Game screen](./images/live-game.png)
+
+### Game Controls
+*   **Play/Pause:** Click the **Play** button to start the timer. Click **Pause** to stop it.
+*   **Opp. Goal:** Click to record a goal scored by the opponent.
+*   **Undo:** Click the yellow **Undo** button to revert the last action (goal, card, etc.).
+*   **End Game:** Click the red **Stop (Square)** button. You'll be asked what to do with the game:
+    *   **Save to history** saves the result and everyone's minutes, then opens History.
+    *   **Discard game (don't save)** throws the game away. Tap it twice to confirm, because it can't be undone.
+    *   **Keep playing** closes the question and carries on with the game.
+
+### Substitutions
+1.  **Click to Sub:**
+    *   Click a player on the **Bench** (Green ring appears).
+    *   Click a player on the **Field** (Red ring appears).
+    *   Click the **Substitute** button that appears at the bottom right.
+2.  **Drag and Drop:** Alternatively, drag a player from the bench and drop them onto a player on the field.
+
+### Recording Events
+Right-click (or long-press on touch devices) on a player on the field to open the **Action Menu**.
+
+![Action Menu screen](./images/action-menu.png)
+
+*   **Goal:** Records a goal for that player. A soccer ball icon ⚽ appears on their token.
+*   **Yellow Card:** Records a yellow card. A yellow card icon 🟨 appears.
+    *   *Note:* A second yellow card automatically converts to a Red Card and removes the player from the field.
+*   **Red Card:** Records a red card. The player is removed from the field and marked with a red card icon 🟥.
+
+### If the App Closes Mid-Game
+The game in progress is kept on your device as you go, so nothing is lost if the page is refreshed, your phone closes the browser, or the battery dies.
+
+*   When you open the app again, the home screen shows an **Unfinished game** banner.
+*   Tap **Resume game** to carry on exactly where you were: score, cards, substitutions and every player's minutes.
+*   If the clock was running when the app closed, it keeps counting the time it was closed (the match didn't stop). It still stops automatically at half time and full time.
+*   Tap **Discard** if you don't want to keep that game. Starting a new game also replaces it.
+*   The game is kept on that device only, and an unfinished game is forgotten after 12 hours.
+
+---
+
+## 6. Game History & Statistics
+
+### History
+From the Team Detail View, click **History**.
+*   View a list of all past games.
+*   See the final score, total time, and individual player stats for each game.
+*   **Export CSV:** Download the history data for spreadsheet analysis.
+
+![History screen](./images/history.png)
+
+### Team Stats
+From the Team Detail View, click **Team Stats**.
+*   View aggregated statistics for the team.
+*   Sort by Goals, Assists, Time Played, etc.
+
+![Team Stats screen](./images/team-stats.png)
