@@ -26,11 +26,13 @@ Welcome to the Soccer Time Tracker! This application helps you manage your socce
 
 ## 1. Getting Started <a name="getting-started"></a>
 
-When you first open the application, you will be greeted by the **Access Gate**.
-1.  Enter your access code.
-2.  Click **Enter**.
+When you first open the application, you'll be asked to sign in. Your email address must have been added by the club's administrator first.
+1.  Enter your email address and tap **Send code**.
+2.  Check your email for a 6-digit code and type it in, then tap **Verify**.
+    *   Only the most recent code works. If you tap **Send a new code**, use the code from the newest email.
+    *   If your email isn't set up yet, you'll see **Access not enabled** — ask the administrator to add you.
 
-![Access Gate screen](./images/access-gate.png)
+**Adding the app to your iPhone home screen:** in Safari, tap Share → **Add to Home Screen**, and turn **"Open as Web App" off** before tapping Add. With it on, iPhone can't keep you signed in: the code is accepted but you end up back at the sign-in screen.
 
 
 Once authenticated, you will see the **Home Screen**. This is your central hub for managing teams and viewing past games.
