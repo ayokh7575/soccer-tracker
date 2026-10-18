@@ -21,7 +21,7 @@ where lower(email) = lower('ayokh75@gmail.com');
 
 -- ============ HELPERS ============
 
--- Email of the signed-in account.
+-- Verified email of the signed-in account.
 create or replace function public.current_email()
 returns text
 language sql
@@ -31,7 +31,8 @@ set search_path = public, neon_auth
 as $$
   select u.email
   from neon_auth."user" u
-  where u.id = auth.uid() or u.id::text = auth.user_id();
+  where (u.id = auth.uid() or u.id::text = auth.user_id())
+    and u."emailVerified";
 $$;
 
 -- Is the signed-in account an admin?
@@ -51,6 +52,7 @@ as $$
     join public.allowed_emails a
       on lower(a.email) = lower(u.email)
     where (u.id = auth.uid() or u.id::text = auth.user_id())
+      and u."emailVerified"
       and coalesce(u.banned, false) = false
     limit 1
   ), false);
@@ -73,10 +75,15 @@ drop policy if exists allowed_emails_insert on public.allowed_emails;
 create policy allowed_emails_insert on public.allowed_emails for insert to authenticated
   with check ((select public.is_admin()));
 
--- Only admins can edit an entry (e.g. grant or revoke admin).
+-- Only admins can edit an entry (e.g. grant or revoke admin), and never their
+-- own: changing their own email or clearing their own admin flag would lock
+-- them out, just like deleting their own row.
 drop policy if exists allowed_emails_update on public.allowed_emails;
 create policy allowed_emails_update on public.allowed_emails for update to authenticated
-  using ((select public.is_admin()))
+  using (
+    (select public.is_admin())
+    and lower(email) <> lower(coalesce((select public.current_email()), ''))
+  )
   with check ((select public.is_admin()));
 
 -- Only admins can revoke, and never their own row — that would lock the admin

@@ -1,5 +1,4 @@
-import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import App from './App';
 
 // Mock Neon: an authenticated session (so AuthGate renders the app) and a
@@ -40,6 +39,8 @@ window.HTMLElement.prototype.scrollIntoView = function() {};
 beforeEach(() => {
   window.confirm = vi.fn(() => true);
   window.alert = vi.fn();
+  // A live game is kept on the device between renders; start each test clean.
+  localStorage.clear();
 });
 
 describe('SoccerTimeTracker Substitution Tests', () => {
@@ -84,6 +85,83 @@ describe('SoccerTimeTracker Substitution Tests', () => {
     fireEvent.change(screen.getByPlaceholderText('Enter game name...'), { target: { value: 'Test Game' } });
     fireEvent.click(screen.getByText('Start Game'));
   };
+
+  test('keeps a live game on the device and resumes it after a reload', async () => {
+    await createTeamAndStartGame();
+    expect(screen.getByText('Test Game')).toBeInTheDocument();
+
+    const saved = JSON.parse(localStorage.getItem('liveGame_v1') || 'null');
+    expect(saved?.gameName).toBe('Test Game');
+    expect(saved?.team?.name).toBe('Test Team');
+    expect(Object.keys(saved?.formationAssignments ?? {})).toHaveLength(11);
+
+    // Simulate the page being reloaded.
+    cleanup();
+    render(<App />);
+
+    expect(await screen.findByTestId('resume-game-banner')).toHaveTextContent('Unfinished game: Test Game (Test Team)');
+    fireEvent.click(screen.getByText('Resume game'));
+
+    // Back in the live game with the same squad on the pitch and bench.
+    expect(await screen.findByText('Test Game')).toBeInTheDocument();
+    expect(screen.getByText('#99')).toBeInTheDocument();
+    expect(screen.getByText('#1')).toBeInTheDocument();
+  });
+
+  test('discarding an unfinished game forgets it', async () => {
+    await createTeamAndStartGame();
+    cleanup();
+    render(<App />);
+
+    fireEvent.click(await screen.findByText('Discard'));
+    expect(screen.queryByTestId('resume-game-banner')).not.toBeInTheDocument();
+    expect(localStorage.getItem('liveGame_v1')).toBeNull();
+  });
+
+  // Lets the real clock tick so there is something to save or lose.
+  const playOneSecond = () => act(() => new Promise(resolve => setTimeout(resolve, 1100)));
+
+  test('Stop offers save / discard / keep playing, and "Keep playing" keeps the game', async () => {
+    await createTeamAndStartGame();
+    await playOneSecond();
+
+    fireEvent.click(screen.getByLabelText('End Game'));
+    expect(screen.getByRole('dialog')).toHaveTextContent('End game?');
+    expect(screen.getByText('Save to history')).toBeInTheDocument();
+    expect(screen.getByText("Discard game (don't save)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Keep playing'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('Test Game')).toBeInTheDocument();
+    expect(localStorage.getItem('liveGame_v1')).not.toBeNull();
+  });
+
+  test('discarding needs a second tap and then ends the game without saving it', async () => {
+    await createTeamAndStartGame();
+    await playOneSecond();
+
+    fireEvent.click(screen.getByLabelText('End Game'));
+    fireEvent.click(screen.getByText("Discard game (don't save)"));
+    // First tap only arms it.
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Tap again to discard — not saved'));
+
+    expect(await screen.findByText('Auto-Assign Players')).toBeInTheDocument(); // back on formation
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(localStorage.getItem('liveGame_v1')).toBeNull();
+  });
+
+  test('saving ends the game and opens history', async () => {
+    await createTeamAndStartGame();
+    await playOneSecond();
+
+    fireEvent.click(screen.getByLabelText('End Game'));
+    fireEvent.click(screen.getByText('Save to history'));
+
+    expect(await screen.findByText('Test Team History')).toBeInTheDocument();
+    expect(screen.getByText('Test Game')).toBeInTheDocument();
+    expect(localStorage.getItem('liveGame_v1')).toBeNull();
+  });
 
   test('performs substitution correctly using click interaction', async () => {
     await createTeamAndStartGame();

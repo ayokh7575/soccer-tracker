@@ -20,8 +20,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "generate-icons": "node scripts/generate-icons.js",
-    "predeploy": "npm version patch && npm run build",
-    "deploy": "gh-pages -d dist"
+    "predeploy": "npm test && npm version patch && npm run build",
+    "deploy": "gh-pages -d dist",
+    "deploy:test": "tsc --noEmit && vitest run && TEST_BUILD=1 vite build --base /soccer-tracker/test/ --outDir dist-test && gh-pages -d dist-test -e test --add"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",

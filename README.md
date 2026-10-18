@@ -1,46 +1,83 @@
-# Getting Started with Create React App
+# Soccer Time Tracker
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A web app for coaches to track each player's minutes, goals and cards during a
+match, manage squads and formations, and keep a season history. Built for
+Northcote City FC; the club name and logo are set in `src/accessConfig.ts`.
 
-## Available Scripts
+Live: https://ayokh7575.github.io/soccer-tracker
 
-In the project directory, you can run:
+## Stack
 
-### `npm start`
+- React 19 + TypeScript, built with Vite, styled with Tailwind
+- [Neon](https://neon.tech) Postgres for data, Neon Auth for sign-in (emailed 6-digit code)
+- Data is read and written from the browser through the Neon Data API;
+  Row-Level Security in Postgres decides what each user can see
+- Hosted on GitHub Pages
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Local development
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+```sh
+npm install
+cp .env.example .env.local   # then fill in your Neon Auth URL and Data API URL
+npm run dev                  # http://localhost:3000
+```
 
-### `npm test`
+Both values in `.env.local` are public client config (they ship to the
+browser). They are not secrets: access is enforced by the database.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start the dev server |
+| `npm test` | Run the test suite once (`npm run test:watch` to keep watching) |
+| `npm run build` | Type-check and build to `dist/` |
+| `npm run deploy` | Run the tests, bump the patch version, build and publish to GitHub Pages |
 
-### `npm run build`
+## Database setup (Neon)
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Run these files in the Neon Console → SQL Editor, in this order. Each one is
+safe to re-run.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+1. `neon/schema.sql` — tables (`teams`, `players`, `games`), indexes, Row-Level
+   Security and grants.
+2. `neon/allowlist.sql` — invite-only access. Adds the `allowed_emails` table
+   and the `is_allowed()` check that every policy uses. **Edit the owner email
+   in this file before running it**, or you will lock yourself out.
+3. `neon/admin.sql` — lets admins manage the access list from inside the app
+   (the "Manage access" link in the footer).
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+`neon/require-verified-email.sql` is a one-off update for projects set up
+before access checks required a verified email address. New projects get
+those definitions from steps 2 and 3 and don't need it.
 
-### `npm run eject`
+### How access works
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+- Anyone can create a Neon Auth account, but they only see data if their
+  **verified** email is in `allowed_emails`. Everyone else gets an
+  "Access not enabled" screen.
+- Each coach only sees their own teams and games (`owner_id`).
+- Admins (`allowed_emails.is_admin = true`) can add and remove people in the
+  app. They can't remove or edit their own entry.
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Project layout
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+```
+src/
+  App.tsx              Main screens: teams, squad, formation, live game wiring
+  GameLive.tsx         Live game screen
+  views/               History and season stats screens
+  hooks/               Data (useTeamStorage, useGameHistory, useAllowedEmails)
+                       and game logic (useGameTimer, useGameActions, useDragAndDrop)
+  liveGameStorage.ts   Keeps the game in progress on the device so it can be resumed
+  historyCsv.ts        Game history CSV import/export
+  teamCsv.ts           Squad CSV import
+  migrateLocalData.ts  One-time import of data from the old, device-only version
+  AuthGate.tsx         Sign-in and the allowlist check
+  AdminUsers.tsx       Manage access screen
+neon/                  SQL to set up the database
+public/USER_MANUAL.md  In-app user manual
+```
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+## CI
 
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+`.github/workflows/ci.yml` type-checks, runs the tests and builds on every push
+to `main` and on pull requests.

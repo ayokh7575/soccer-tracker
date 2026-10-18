@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Type-check, then tests (they use the dummy Neon URLs in .env.test).
+      - run: npx tsc --noEmit
+      - run: npm test
+      # Build with placeholder config: this only checks that the bundle builds.
+      - run: npx vite build
+        env:
+          VITE_NEON_AUTH_URL: https://example.invalid/neondb/auth
+          VITE_NEON_DATA_API_URL: https://example.invalid/neondb/rest/v1

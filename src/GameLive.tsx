@@ -1,7 +1,7 @@
 import React from 'react';
 import { Play, Pause, Square, Clock, Undo2, Search } from 'lucide-react';
 import { Player, GameAction } from './types';
-import { POSITIONS } from './App';
+import { POSITIONS, SlotPosition } from './constants';
 
 interface GameLiveProps {
   gameName: string;
@@ -52,7 +52,7 @@ interface GameLiveProps {
   getPlayerById: (id: string) => Player | null;
   getFormationSlots: () => string[];
   getSubstitutes: () => Player[];
-  formationLayouts: any;
+  formationLayouts: Record<string, Record<string, SlotPosition>>;
 
   substituteSortKey: 'number' | 'position';
   onSetSubstituteSortKey: (key: 'number' | 'position') => void;
@@ -219,7 +219,7 @@ export const GameLive: React.FC<GameLiveProps> = ({
                       setSelectedPlayerForAction({ id: player.id, name: getPlayerDisplayName(player) });
                     }
                   }}
-                  onClick={(e) => {
+                  onClick={() => {
                     if (player) {
                       onFieldPlayerClick(player);
                     }

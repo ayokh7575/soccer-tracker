@@ -27,3 +27,6 @@ build/
 
 # vite build output
 dist
+
+# test build (npm run deploy:test)
+dist-test

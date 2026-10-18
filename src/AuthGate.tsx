@@ -7,7 +7,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const userId = session.data?.user?.id;
   const userEmail = session.data?.user?.email;
   const [access, setAccess] = useState<'checking' | 'allowed' | 'denied'>('checking');
-  const [accessDetail, setAccessDetail] = useState<string>('');
   const [email, setEmail] = useState('');
   const [token, setToken] = useState('');
   const [codeSent, setCodeSent] = useState(false);
@@ -46,9 +45,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       for (let attempt = 0; attempt <= delays.length && !cancelled; attempt++) {
         const { data, error } = await neon.rpc('is_allowed');
         if (cancelled) return;
-        setAccessDetail(
-          `id=${userId ?? 'none'} result=${JSON.stringify(data)} err=${error ? (error.message || JSON.stringify(error)) : 'none'}`
-        );
         if (data === true) {
           setAccess('allowed');
           return;
@@ -149,11 +145,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           >
             Sign out
           </button>
-          {accessDetail && (
-            <p className="mt-4 text-[10px] leading-tight text-gray-400 break-all font-mono">
-              {accessDetail}
-            </p>
-          )}
         </div>
       </div>
     );

@@ -152,12 +152,20 @@ export const useGameActions = ({
     }
   };
 
-  const initializeGameActions = (initialGoals: Record<string, number>, initialRedCards: Record<string, number>, initialYellowCards: Record<string, number>) => {
+  // Starts a fresh game, or (with the last two arguments) restores one saved
+  // on this device.
+  const initializeGameActions = (
+    initialGoals: Record<string, number>,
+    initialRedCards: Record<string, number>,
+    initialYellowCards: Record<string, number>,
+    initialOpponentGoals = 0,
+    initialActionHistory: GameAction[] = []
+  ) => {
     setPlayerGoals(initialGoals);
     setPlayerRedCards(initialRedCards);
     setPlayerYellowCards(initialYellowCards);
-    setOpponentGoals(0);
-    setActionHistory([]);
+    setOpponentGoals(initialOpponentGoals);
+    setActionHistory(initialActionHistory);
   };
 
   return {

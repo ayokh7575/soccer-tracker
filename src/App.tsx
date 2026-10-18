@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Plus, Trash2, Save, History as HistoryIcon, Upload, Download, BarChart2, ChevronUp, ChevronDown, Search, BookOpen, ShieldCheck } from 'lucide-react';
+import { Plus, Trash2, Save, History as HistoryIcon, Upload, BarChart2, ChevronDown, Search, BookOpen, ShieldCheck } from 'lucide-react';
 import { useTeamStorage } from './hooks/useTeamStorage';
 import { useGameTimer } from './hooks/useGameTimer';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
@@ -11,65 +11,16 @@ import { GameLive } from './GameLive';
 import { UserManual } from './UserManual';
 import { AdminUsers } from './AdminUsers';
 import { neon } from './neonClient';
-import { hasLocalDataToMigrate, migrateLocalData } from './migrateLocalData';
+import { hasLocalDataToMigrate, hasPartialMigration, migrateLocalData } from './migrateLocalData';
+import { LiveGameSnapshot, loadLiveGame, saveLiveGame, clearLiveGame } from './liveGameStorage';
+import { POSITIONS, FORMATIONS_BY_SIDE, FORMATION_LAYOUTS } from './constants';
+import { formatTime } from './utils/format';
+import { historyToCsv, parseHistoryCsv } from './historyCsv';
+import { parseTeamCsv } from './teamCsv';
+import { HistoryView } from './views/HistoryView';
+import { PlayerStatsView } from './views/PlayerStatsView';
+import { EndGameDialog } from './EndGameDialog';
 import './index.css';
-
-export const POSITIONS = ['GK', 'CB', 'RB', 'LB', 'DM', 'CM', 'RM', 'LM', 'AM', 'LW', 'RW', 'CF'];
-const FORMATIONS_BY_SIDE: Record<9 | 11, string[]> = {
-  11: ['1-4-4-2', '1-4-3-3'],
-  9:  ['1-3-3-2', '1-4-3-1'],
-};
-
-const FORMATION_LAYOUTS = {
-  '1-4-4-2': {
-    GK:  { x: 50, y: 88 },
-    RB:  { x: 85, y: 65 },
-    CB:  { x: 65, y: 75 },
-    CB2: { x: 35, y: 75 },
-    LB:  { x: 15, y: 65 },
-    RM:  { x: 88, y: 42 },
-    CM:  { x: 65, y: 42 },
-    CM2: { x: 35, y: 42 },
-    LM:  { x: 12, y: 42 },
-    CF:  { x: 65, y: 15 },
-    CF2: { x: 35, y: 15 }
-  },
-  '1-4-3-3': {
-    GK:  { x: 50, y: 88 },
-    RB:  { x: 88, y: 65 },
-    CB:  { x: 68, y: 75 },
-    CB2: { x: 32, y: 75 },
-    LB:  { x: 12, y: 65 },
-    DM:  { x: 50, y: 52 },
-    CM:  { x: 75, y: 40 },
-    CM2: { x: 25, y: 40 },
-    RW:  { x: 85, y: 18 },
-    CF:  { x: 50, y: 12 },
-    LW:  { x: 15, y: 18 }
-  },
-  '1-3-3-2': {
-    GK:  { x: 50, y: 88 },
-    LB:  { x: 25, y: 63 },
-    CB:  { x: 50, y: 63 },
-    RB:  { x: 75, y: 63 },
-    LM:  { x: 20, y: 37 },
-    CM:  { x: 50, y: 37 },
-    RM:  { x: 80, y: 37 },
-    CF:  { x: 35, y: 12 },
-    CF2: { x: 65, y: 12 }
-  },
-  '1-4-3-1': {
-    GK:  { x: 50, y: 88 },
-    LB:  { x: 15, y: 63 },
-    CB:  { x: 38, y: 63 },
-    CB2: { x: 62, y: 63 },
-    RB:  { x: 85, y: 63 },
-    LM:  { x: 20, y: 37 },
-    CM:  { x: 50, y: 37 },
-    RM:  { x: 80, y: 37 },
-    CF:  { x: 50, y: 12 }
-  }
-};
 
 export default function SoccerTimeTracker() {
   const [view, setView] = useState('home');
@@ -93,7 +44,6 @@ export default function SoccerTimeTracker() {
   const [isSecondaryPositionDropdownOpen, setIsSecondaryPositionDropdownOpen] = useState(false);
   const secondaryPositionRef = useRef<HTMLDivElement>(null);
   const addPlayerSectionRef = useRef<HTMLDivElement>(null);
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'totalTime', direction: 'desc' });
   const version = __APP_VERSION__;
   const isDragging = useRef(false);
   const [draggedPlayerId, setDraggedPlayerId] = useState<string | null>(null);
@@ -163,7 +113,9 @@ export default function SoccerTimeTracker() {
       alert(`Imported ${r.teams} team(s), ${r.players} player(s), and ${r.games} game(s) into your account.`);
     } catch (e) {
       console.error('Local data import failed:', e);
-      alert('Import failed. Your local data is unchanged — please try again.');
+      // Whatever did import is kept; a retry only imports what's missing.
+      await Promise.all([reloadTeams(), reloadHistory()]);
+      alert('Some of your data could not be imported. Your local data is unchanged — tap "Import data" again to retry the rest.');
     }
   };
   
@@ -174,6 +126,7 @@ export default function SoccerTimeTracker() {
     activePlayerIds, 
     setActivePlayerIds,
     startGame, 
+    restoreGame,
     togglePlayPause, 
     cancelGame 
   } = useGameTimer();
@@ -198,7 +151,7 @@ export default function SoccerTimeTracker() {
   });
 
   const getFormationSlots = () => {
-    const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
+    const layout = FORMATION_LAYOUTS[formation];
     return Object.keys(layout);
   };
 
@@ -277,10 +230,75 @@ export default function SoccerTimeTracker() {
   }, []);
 
   useEffect(() => {
-    if (currentTeam) {
+    // Only for a game being set up: a game in progress (including one just
+    // resumed) keeps the duration it was started with.
+    if (currentTeam && gameState === 'idle') {
       setGameDuration(currentTeam.defaultGameDuration || 80);
     }
   }, [currentTeam]);
+
+  // ---- Live game persistence (survives refresh / tab killed / flat battery) ----
+  const [pendingLiveGame, setPendingLiveGame] = useState<LiveGameSnapshot | null>(() => loadLiveGame());
+
+  useEffect(() => {
+    if (view !== 'game-live' || gameState === 'idle' || !currentTeam) return;
+    saveLiveGame({
+      team: currentTeam,
+      gameName,
+      gameDuration,
+      formation,
+      formationAssignments,
+      gameState,
+      gameTime,
+      playerTimes,
+      activePlayerIds,
+      playerGoals,
+      playerRedCards,
+      playerYellowCards,
+      opponentGoals,
+      actionHistory,
+    });
+  }, [view, currentTeam, gameName, gameDuration, formation, formationAssignments, gameState, gameTime,
+      playerTimes, activePlayerIds, playerGoals, playerRedCards, playerYellowCards, opponentGoals, actionHistory]);
+
+  const resumeLiveGame = () => {
+    const saved = pendingLiveGame;
+    if (!saved) return;
+    // Prefer the team as it is now (e.g. a player's name was corrected), but
+    // fall back to the copy in the snapshot if the team can't be found.
+    const team = teams.find(t => t.id === saved.team.id) ?? saved.team;
+    setCurrentTeam(team);
+    setFormation(saved.formation);
+    setFormationAssignments(saved.formationAssignments);
+    setGameName(saved.gameName);
+    setGameDuration(saved.gameDuration);
+    initializeGameActions(
+      saved.playerGoals, saved.playerRedCards, saved.playerYellowCards,
+      saved.opponentGoals, saved.actionHistory
+    );
+    restoreGame({
+      gameState: saved.gameState,
+      gameTime: saved.gameTime,
+      playerTimes: saved.playerTimes,
+      activePlayerIds: saved.activePlayerIds,
+      duration: saved.gameDuration,
+      resumeFrom: saved.savedAt,
+    });
+    setPendingLiveGame(null);
+    setView('game-live');
+  };
+
+  const discardLiveGame = () => {
+    if (!window.confirm('Discard the unfinished game? It will not be saved to history.')) return;
+    clearLiveGame();
+    setPendingLiveGame(null);
+  };
+
+  // Ends the game on screen and forgets the copy kept on this device.
+  const finishLiveGame = () => {
+    cancelGame();
+    clearLiveGame();
+  };
 
   const handleSecondaryPositionChange = (position: string) => {
     setPlayerSecondaryPositions(prev => {
@@ -301,13 +319,6 @@ export default function SoccerTimeTracker() {
       return;
     }
     setDragOverTarget(null);
-  };
-
-  const formatTime = (seconds: number) => {
-    const rounded = Math.round(seconds);
-    const mins = Math.floor(rounded / 60);
-    const secs = rounded % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const cancelEditing = () => {
@@ -371,41 +382,12 @@ export default function SoccerTimeTracker() {
       const content = e.target?.result as string;
       if (!content) return;
 
-      const lines = content.split('\n');
       let teamName = teamNameInput.trim();
-      
       if (!teamName) {
         teamName = file.name.replace(/\.[^/.]+$/, ""); // Use filename as team name if input is empty
       }
 
-      const players: Player[] = [];
-      let startIndex = 0;
-      
-      // Simple check to skip header row if it exists
-      if (lines.length > 0 && (lines[0].toLowerCase().includes('first name') || lines[0].toLowerCase().includes('firstname'))) {
-        startIndex = 1;
-      }
-
-      for (let i = startIndex; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        
-        const parts = line.split(',').map(p => p.trim());
-        if (parts.length >= 3) {
-          const [firstName, lastName, number, position = 'SUB', ...secondaryParts] = parts;
-          if (firstName && lastName && number) {
-            players.push({
-              id: crypto.randomUUID(),
-              firstName,
-              lastName,
-              number,
-              position,
-              secondaryPositions: secondaryParts.flatMap(p => p.split(/[:;]/)).map(p => p.trim()).filter(Boolean),
-              isUnavailable: false
-            });
-          }
-        }
-      }
+      const players = parseTeamCsv(content);
 
       if (players.length > 0) {
         const newTeam: Team = {
@@ -432,7 +414,7 @@ export default function SoccerTimeTracker() {
   };
 
   const handleAddPlayer = () => {
-    if (playerFirstName && playerLastName && playerNumber && playerPosition) {
+    if (currentTeam && playerFirstName && playerLastName && playerNumber && playerPosition) {
       const player: Player = {
         id: crypto.randomUUID(),
         firstName: playerFirstName,
@@ -526,6 +508,8 @@ export default function SoccerTimeTracker() {
     
     initializeGameActions(goals, redCards, yellowCards);
     startGame(activePlayers, times, gameDuration);
+    // Starting a new game replaces any unfinished one kept on this device.
+    setPendingLiveGame(null);
     setView('game-live');
   };
 
@@ -594,90 +578,88 @@ export default function SoccerTimeTracker() {
     }
   };
 
-  const handleEndGame = async () => {
+  // Stop button: if anything has been played, ask what to do with the game.
+  const [showEndGameDialog, setShowEndGameDialog] = useState(false);
+  const [savingGame, setSavingGame] = useState(false);
+
+  const handleEndGame = () => {
     if (gameTime > 0 && currentTeam) {
-      if (window.confirm('Game ended. Save to history?')) {
-        const playerStats = currentTeam.players.map(p => ({
-          id: p.id,
-          name: `${p.firstName} ${p.lastName}`,
-          number: p.number,
-          time: playerTimes[p.id] || 0,
-          goals: playerGoals[p.id] || 0,
-          redCards: playerRedCards[p.id] || 0,
-          yellowCards: playerYellowCards[p.id] || 0
-        }));
-
-        // Keep the game on screen if it couldn't be saved, so the result isn't lost.
-        const saved = await saveGame({
-          id: crypto.randomUUID(),
-          date: new Date().toISOString(),
-          name: gameName,
-          teamName: currentTeam.name,
-          teamScore: Object.values(playerGoals).reduce((a, b) => a + b, 0),
-          opponentScore: opponentGoals,
-          totalTime: gameTime,
-          playerStats
-        }, currentTeam.id);
-        if (!saved) return;
-
-        // Mark red carded players as unavailable, and remove borrowed players
-        const redCardedPlayerIds = Object.keys(playerRedCards).filter(id => playerRedCards[id] > 0);
-        const updatedPlayers = currentTeam.players
-          .filter(p => !p.isBorrowed)
-          .map(p => redCardedPlayerIds.includes(p.id) ? { ...p, isUnavailable: true } : p);
-        await saveCurrentTeam({ ...currentTeam, players: updatedPlayers });
-
-        cancelGame();
-        setGameName('');
-        setView('history');
-        return;
-      }
+      setShowEndGameDialog(true);
+    } else {
+      // Nothing played yet: nothing to save or lose.
+      finishLiveGame();
+      setGameName('');
+      setView('formation');
     }
-    // Even if not saving, remove borrowed players if a game was played
-    if (gameTime > 0 && currentTeam) {
+  };
+
+  const saveAndEndGame = async () => {
+    if (!currentTeam) return;
+    const playerStats = currentTeam.players.map(p => ({
+      id: p.id,
+      name: `${p.firstName} ${p.lastName}`,
+      number: p.number,
+      time: playerTimes[p.id] || 0,
+      goals: playerGoals[p.id] || 0,
+      redCards: playerRedCards[p.id] || 0,
+      yellowCards: playerYellowCards[p.id] || 0
+    }));
+
+    setSavingGame(true);
+    // Keep the game on screen if it couldn't be saved, so the result isn't lost.
+    const saved = await saveGame({
+      id: crypto.randomUUID(),
+      date: new Date().toISOString(),
+      name: gameName,
+      teamName: currentTeam.name,
+      teamScore: Object.values(playerGoals).reduce((a, b) => a + b, 0),
+      opponentScore: opponentGoals,
+      totalTime: gameTime,
+      playerStats
+    }, currentTeam.id);
+    if (!saved) {
+      setSavingGame(false);
+      setShowEndGameDialog(false);
+      return;
+    }
+
+    // Mark red carded players as unavailable, and remove borrowed players
+    const redCardedPlayerIds = Object.keys(playerRedCards).filter(id => playerRedCards[id] > 0);
+    const updatedPlayers = currentTeam.players
+      .filter(p => !p.isBorrowed)
+      .map(p => redCardedPlayerIds.includes(p.id) ? { ...p, isUnavailable: true } : p);
+    await saveCurrentTeam({ ...currentTeam, players: updatedPlayers });
+
+    setSavingGame(false);
+    setShowEndGameDialog(false);
+    finishLiveGame();
+    setGameName('');
+    setView('history');
+  };
+
+  const discardAndEndGame = async () => {
+    setShowEndGameDialog(false);
+    // Borrowed players were only for this game, saved or not.
+    if (currentTeam) {
       await saveCurrentTeam({ ...currentTeam, players: currentTeam.players.filter(p => !p.isBorrowed) });
     }
-    cancelGame();
+    finishLiveGame();
     setGameName('');
     setView('formation');
   };
 
   const exportHistoryToCSV = (data = history) => {
     if (data.length === 0) return;
-
-    const headers = ['Date', 'Game Name', 'Team Name', 'Score', 'Total Game Time', 'Player Name', 'Player Number', 'Player Time', 'Goals', 'Red Cards', 'Yellow Cards'];
-    const rows = data.flatMap(game => 
-      game.playerStats.map(stat => [
-        new Date(game.date).toLocaleDateString(),
-        game.name,
-        game.teamName,
-        `${game.teamScore}-${game.opponentScore}`,
-        formatTime(game.totalTime),
-        stat.name,
-        stat.number,
-        formatTime(stat.time),
-        stat.goals || 0,
-        stat.redCards || 0,
-        stat.yellowCards || 0
-      ])
-    );
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([historyToCsv(data)], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', 'soccer_tracker_history.csv');
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    link.href = url;
+    link.download = 'soccer_tracker_history.csv';
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleImportHistory = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -689,71 +671,8 @@ export default function SoccerTimeTracker() {
       const content = e.target?.result as string;
       if (!content) return;
 
-      const parseTime = (timeStr: string): number => {
-        const parts = timeStr.trim().split(':');
-        if (parts.length === 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-        return 0;
-      };
-
-      const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
-      if (lines.length < 2) { alert('Invalid CSV file.'); return; }
-
-      const parseCell = (c: string) => c.replace(/^"|"$/g, '').trim();
-      const headers = lines[0].split(',').map(parseCell);
-      const col = (row: string[], name: string) => row[headers.indexOf(name)] ?? '';
-
-      const gameMap = new Map<string, import('./hooks/useGameHistory').GameRecord>();
-
-      for (const line of lines.slice(1)) {
-        const cells = line.split(',').map(parseCell);
-        const date = col(cells, 'Date');
-        const gameName = col(cells, 'Game Name');
-        const teamName = col(cells, 'Team Name');
-        const score = col(cells, 'Score');
-        const totalTime = col(cells, 'Total Game Time');
-        const playerName = col(cells, 'Player Name');
-        const playerNumber = col(cells, 'Player Number');
-        const playerTime = col(cells, 'Player Time');
-        const goals = col(cells, 'Goals');
-        const redCards = col(cells, 'Red Cards');
-        const yellowCards = col(cells, 'Yellow Cards');
-        if (!gameName) continue;
-
-        const gameKey = `${date}|${gameName}|${teamName}|${score}|${totalTime}`;
-        if (!gameMap.has(gameKey)) {
-          const [teamScore, opponentScore] = score.split('-').map(n => parseInt(n) || 0);
-          gameMap.set(gameKey, {
-            id: crypto.randomUUID(),
-            date: (() => {
-              // Parse DD/MM/YYYY or fall back to native parsing
-              const ddmmyyyy = date.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-              if (ddmmyyyy) return new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`).toISOString();
-              const parsed = new Date(date);
-              return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
-            })(),
-            name: gameName,
-            teamName,
-            teamScore,
-            opponentScore,
-            totalTime: parseTime(totalTime),
-            playerStats: []
-          });
-        }
-
-        if (playerNumber) {
-          gameMap.get(gameKey)!.playerStats.push({
-            id: crypto.randomUUID(),
-            name: playerName,
-            number: playerNumber,
-            time: parseTime(playerTime),
-            goals: parseInt(goals) || 0,
-            redCards: parseInt(redCards) || 0,
-            yellowCards: parseInt(yellowCards) || 0
-          });
-        }
-      }
-
-      const importedGames = Array.from(gameMap.values());
+      const importedGames = parseHistoryCsv(content);
+      if (importedGames === null) { alert('Invalid CSV file.'); return; }
       if (importedGames.length === 0) { alert('No valid game records found in CSV.'); return; }
 
       importGames(importedGames).then(({ added, merged }) => {
@@ -852,174 +771,6 @@ export default function SoccerTimeTracker() {
     }
   };
 
-  const renderPlayerStats = () => {
-    const statsMap: Record<string, { id: string; name: string; number: string; totalTime: number; gamesPlayed: number; totalGoals: number; totalRedCards: number; totalYellowCards: number; avgTime: number }> = {};
-
-    history.forEach(game => {
-      game.playerStats.forEach(p => {
-        if (!statsMap[p.id]) {
-          statsMap[p.id] = { id: p.id, name: p.name, number: p.number, totalTime: 0, gamesPlayed: 0, totalGoals: 0, totalRedCards: 0, totalYellowCards: 0, avgTime: 0 };
-        }
-        statsMap[p.id].totalTime += p.time;
-        statsMap[p.id].totalGoals += (p.goals || 0);
-        statsMap[p.id].totalRedCards += (p.redCards || 0);
-        statsMap[p.id].totalYellowCards += (p.yellowCards || 0);
-        if (p.time > 0) {
-          statsMap[p.id].gamesPlayed += 1;
-        }
-      });
-    });
-
-    // Calculate averages
-    Object.values(statsMap).forEach(stat => {
-      if (stat.gamesPlayed > 0) {
-        stat.avgTime = stat.totalTime / stat.gamesPlayed;
-      }
-    });
-
-    let sortedStats = Object.values(statsMap).filter(s => s.totalTime > 0);
-
-    if (currentTeam) {
-      sortedStats = sortedStats.filter(stat => currentTeam.players.some(p => p.id === stat.id));
-    }
-
-    sortedStats.sort((a, b) => {
-      const aValue = a[sortConfig.key as keyof typeof a];
-      const bValue = b[sortConfig.key as keyof typeof b];
-
-      if (sortConfig.key === 'number') {
-        const numA = parseInt(a.number) || 0;
-        const numB = parseInt(b.number) || 0;
-        return sortConfig.direction === 'asc' ? numA - numB : numB - numA;
-      }
-
-      if (aValue < bValue) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
-      }
-      return 0;
-    });
-
-    const requestSort = (key: string) => {
-      let direction: 'asc' | 'desc' = 'asc';
-      if (sortConfig.key === key && sortConfig.direction === 'asc') {
-        direction = 'desc';
-      }
-      setSortConfig({ key, direction });
-    };
-
-    const SortIcon = ({ column }: { column: string }) => {
-      if (sortConfig.key !== column) return <div className="w-4 h-4" />;
-      return sortConfig.direction === 'asc' ? <ChevronUp size={16} /> : <ChevronDown size={16} />;
-    };
-
-    return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">{currentTeam ? `${currentTeam.name} Stats` : 'Player Statistics'}</h1>
-          <button onClick={() => setView(currentTeam ? 'team-detail' : 'home')} className="text-blue-600 hover:underline">
-            {currentTeam ? 'Back to Team' : 'Back to Home'}
-          </button>
-        </div>
-
-        {sortedStats.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No stats available. Play some games first!</p>
-        ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden border">
-            <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => requestSort('number')}
-                  >
-                    <div className="flex items-center gap-1">Number <SortIcon column="number" /></div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => requestSort('name')}
-                  >
-                    <div className="flex items-center gap-1">Name <SortIcon column="name" /></div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => requestSort('gamesPlayed')}
-                  >
-                    <div className="flex items-center gap-1">Games <SortIcon column="gamesPlayed" /></div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => requestSort('totalGoals')}
-                  >
-                    <div className="flex items-center gap-1">Goals <SortIcon column="totalGoals" /></div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => requestSort('totalYellowCards')}
-                  >
-                    <div className="flex items-center gap-1">Yellow Cards <SortIcon column="totalYellowCards" /></div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => requestSort('totalRedCards')}
-                  >
-                    <div className="flex items-center gap-1">Red Cards <SortIcon column="totalRedCards" /></div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => requestSort('avgTime')}
-                  >
-                    <div className="flex items-center gap-1">Avg Time <SortIcon column="avgTime" /></div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => requestSort('totalTime')}
-                  >
-                    <div className="flex items-center gap-1">Total Time <SortIcon column="totalTime" /></div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {sortedStats.map((stat, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      #{stat.number}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {stat.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {stat.gamesPlayed}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {stat.totalGoals}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {stat.totalYellowCards}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {stat.totalRedCards}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatTime(stat.avgTime)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600 font-semibold">
-                      {formatTime(stat.totalTime)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   const renderHome = () => (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6 text-center">
@@ -1029,7 +780,37 @@ export default function SoccerTimeTracker() {
         </p>
       </div>
 
-      {!teamsLoading && teams.length === 0 && showMigrate && (
+      {!teamsLoading && pendingLiveGame && (
+        <div
+          data-testid="resume-game-banner"
+          className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg flex flex-wrap items-center justify-between gap-4"
+        >
+          <div className="text-sm text-amber-900">
+            <p className="font-semibold">Unfinished game: {pendingLiveGame.gameName} ({pendingLiveGame.team.name})</p>
+            <p>
+              {pendingLiveGame.gameState === 'playing'
+                ? 'The clock was running and has kept counting while the app was closed.'
+                : `Stopped at ${formatTime(pendingLiveGame.gameTime)}.`}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={discardLiveGame}
+              className="px-4 py-2 border border-amber-400 text-amber-900 rounded-lg hover:bg-amber-100 font-semibold whitespace-nowrap"
+            >
+              Discard
+            </button>
+            <button
+              onClick={resumeLiveGame}
+              className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-semibold whitespace-nowrap"
+            >
+              Resume game
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!teamsLoading && showMigrate && (teams.length === 0 || hasPartialMigration()) && (
         <div className="mb-6 p-4 bg-blue-50 border border-blue-300 rounded-lg flex items-center justify-between gap-4">
           <div className="text-sm text-blue-900">
             <p className="font-semibold">Local data found on this device</p>
@@ -1129,7 +910,8 @@ export default function SoccerTimeTracker() {
     </div>
   );
 
-  const renderTeamDetail = () => (
+  // Takes the team as an argument so the view can rely on it being set.
+  const renderTeamDetail = (currentTeam: Team) => (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-4">
         <button onClick={() => { setCurrentTeam(null); setView('home'); cancelEditing(); }} className="text-blue-600 hover:underline">
@@ -1325,7 +1107,7 @@ export default function SoccerTimeTracker() {
 
   const renderFormation = () => {
     const slots = getFormationSlots();
-    const layout = FORMATION_LAYOUTS[formation as keyof typeof FORMATION_LAYOUTS];
+    const layout = FORMATION_LAYOUTS[formation];
     const assignedPlayerIds = Object.values(formationAssignments);
     const unassignedPlayers = (currentTeam?.players.filter(p => 
       !assignedPlayerIds.includes(p.id) && 
@@ -1535,106 +1317,6 @@ export default function SoccerTimeTracker() {
     );
   };
 
-  const renderHistory = () => {
-    const displayedHistory = currentTeam 
-      ? history.filter(game => game.teamName === currentTeam.name)
-      : history;
-
-    return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">{currentTeam ? `${currentTeam.name} History` : 'Game History'}</h1>
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 text-blue-600 hover:underline cursor-pointer">
-              <Upload size={20} /> Import CSV
-              <input type="file" accept=".csv" onChange={handleImportHistory} className="hidden" />
-            </label>
-            {displayedHistory.length > 0 && (
-              <button
-                onClick={() => exportHistoryToCSV(displayedHistory)}
-                className="flex items-center gap-2 text-green-600 hover:underline"
-              >
-                <Download size={20} /> Export CSV
-              </button>
-            )}
-            <button onClick={() => setView(currentTeam ? 'team-detail' : 'home')} className="text-blue-600 hover:underline">
-              {currentTeam ? 'Back to Team' : 'Back to Home'}
-            </button>
-          </div>
-        </div>
-        
-        {displayedHistory.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No games saved {currentTeam ? 'for this team' : ''}.</p>
-        ) : (
-          <div className="space-y-4">
-            {displayedHistory.map(game => (
-              <div key={game.id} className="bg-white p-4 rounded-lg shadow border">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="font-bold text-lg">{game.name}</h3>
-                    <p className="text-sm text-gray-600">
-                      {new Date(game.date).toLocaleDateString()} • {game.teamName}
-                    </p>
-                    <p className="text-lg font-bold mt-1">
-                      Score: {game.teamScore} - {game.opponentScore}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-mono font-bold text-xl text-blue-600">
-                      {formatTime(game.totalTime)}
-                    </div>
-                    <button 
-                      onClick={() => {
-                        if (window.confirm('Delete this record?')) {
-                          deleteGameHistory(game.id);
-                        }
-                      }}
-                      className="text-red-500 text-xs hover:underline mt-1"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="border-t pt-3">
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Player Stats</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                    {game.playerStats.map(stat => (
-                      <div key={stat.id} className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded text-sm">
-                        <span className="truncate mr-2">#{stat.number} {stat.name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className={`font-mono ${stat.time > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
-                            {formatTime(stat.time)}
-                          </span>
-                          {stat.goals > 0 && (
-                            <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">⚽ {stat.goals}</span>
-                          )}
-                          {/* Show yellow cards if they exist and didn't result in the red card shown */}
-                          {(stat.yellowCards || 0) > 0 && !((stat.redCards || 0) > 0 && (stat.yellowCards || 0) === 2) && (
-                              <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">🟨</span>
-                          )}
-                          {/* Show red card */}
-                          {(stat.redCards || 0) > 0 && ((stat.yellowCards || 0) === 2 ? (
-                              <span className="flex flex-col gap-0.5" title="2nd Yellow Card">
-                                <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-1.5 py-0.5 rounded-full">🟨</span>
-                                <span className="bg-red-100 text-red-800 text-xs font-bold px-1.5 py-0.5 rounded-full">🟥</span>
-                              </span>
-                            ) : (
-                              <span className="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">🟥</span>
-                            )
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
@@ -1655,7 +1337,7 @@ export default function SoccerTimeTracker() {
       )}
       <div className="flex-1">
         {view === 'home' && renderHome()}
-        {view === 'team-detail' && renderTeamDetail()}
+        {view === 'team-detail' && currentTeam && renderTeamDetail(currentTeam)}
         {view === 'formation' && renderFormation()}
         {view === 'game-live' && (
           <GameLive
@@ -1713,8 +1395,33 @@ export default function SoccerTimeTracker() {
             onSetPlayerFilterPosition={setPlayerFilterPosition}
           />
         )}
-        {view === 'history' && renderHistory()}
-        {view === 'player-stats' && renderPlayerStats()}
+        {view === 'game-live' && showEndGameDialog && (
+          <EndGameDialog
+            gameName={gameName}
+            score={`${Object.values(playerGoals).reduce((a, b) => a + b, 0)} - ${opponentGoals}`}
+            saving={savingGame}
+            onSave={saveAndEndGame}
+            onDiscard={discardAndEndGame}
+            onKeepPlaying={() => setShowEndGameDialog(false)}
+          />
+        )}
+        {view === 'history' && (
+          <HistoryView
+            history={history}
+            currentTeam={currentTeam}
+            onImport={handleImportHistory}
+            onExport={exportHistoryToCSV}
+            onDelete={deleteGameHistory}
+            onBack={() => setView(currentTeam ? 'team-detail' : 'home')}
+          />
+        )}
+        {view === 'player-stats' && (
+          <PlayerStatsView
+            history={history}
+            currentTeam={currentTeam}
+            onBack={() => setView(currentTeam ? 'team-detail' : 'home')}
+          />
+        )}
         {view === 'manual' && <UserManual onBack={() => setView('home')} />}
         {view === 'admin' && isAdmin && (
           <AdminUsers onBack={() => setView('home')} currentEmail={currentEmail} />

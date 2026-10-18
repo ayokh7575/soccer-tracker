@@ -34,6 +34,8 @@ on conflict (email) do nothing;
 -- the 'authenticated' role has no grants on them. search_path is pinned so the
 -- function body cannot be hijacked by a caller-controlled search_path.
 --   * "user" is quoted: it is a reserved SQL keyword.
+--   * Only verified addresses count ("emailVerified"), so nobody can claim an
+--     invited address by registering it before its owner does.
 --   * u.id is uuid. auth.uid() returns uuid directly; auth.user_id() returns
 --     text. Both are accepted so the match does not depend on which one
 --     pg_session_jwt populates.
@@ -50,6 +52,7 @@ as $$
     join public.allowed_emails a
       on lower(a.email) = lower(u.email)
     where (u.id = auth.uid() or u.id::text = auth.user_id())
+      and u."emailVerified"
       and coalesce(u.banned, false) = false
   );
 $$;

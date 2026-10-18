@@ -137,3 +137,55 @@ describe('useGameTimer', () => {
     expect(result.current.activePlayerIds).toEqual([]);
   });
 });
+describe('useGameTimer - restoreGame', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('restores a paused game exactly as it was', () => {
+    const { result } = renderHook(() => useGameTimer());
+    act(() => {
+      result.current.restoreGame({
+        gameState: 'paused', gameTime: 600, playerTimes: { p1: 600, p2: 100 },
+        activePlayerIds: ['p1'], duration: 80, resumeFrom: Date.now() - 60_000,
+      });
+    });
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(result.current.gameState).toBe('paused');
+    expect(result.current.gameTime).toBe(600);
+    expect(result.current.playerTimes).toEqual({ p1: 600, p2: 100 });
+  });
+
+  it('counts the time the app was closed for a game that was running', () => {
+    const { result } = renderHook(() => useGameTimer());
+    act(() => {
+      result.current.restoreGame({
+        gameState: 'playing', gameTime: 600, playerTimes: { p1: 600, p2: 100 },
+        activePlayerIds: ['p1'], duration: 80, resumeFrom: Date.now() - 90_000,
+      });
+    });
+    act(() => { vi.advanceTimersByTime(1000); });
+    // 90s closed + 1s since reopening
+    expect(result.current.gameTime).toBe(691);
+    expect(result.current.playerTimes).toEqual({ p1: 691, p2: 100 });
+    expect(result.current.gameState).toBe('playing');
+  });
+
+  it('stops at half time if the app was closed across it', () => {
+    const { result } = renderHook(() => useGameTimer());
+    act(() => {
+      result.current.restoreGame({
+        gameState: 'playing', gameTime: 2300, playerTimes: { p1: 2300 },
+        activePlayerIds: ['p1'], duration: 80, resumeFrom: Date.now() - 600_000,
+      });
+    });
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(result.current.gameTime).toBe(2400);
+    expect(result.current.playerTimes).toEqual({ p1: 2400 });
+    expect(result.current.gameState).toBe('paused');
+  });
+});

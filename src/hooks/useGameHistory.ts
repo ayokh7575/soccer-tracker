@@ -21,6 +21,8 @@ export interface GameRecord {
   opponentScore: number;
   totalTime: number;
   playerStats: PlayerStat[];
+  // The team this game belongs to, when known. Imported games start without one.
+  teamId?: string | null;
 }
 
 const rowToGame = (r: any): GameRecord => ({
@@ -32,11 +34,12 @@ const rowToGame = (r: any): GameRecord => ({
   opponentScore: r.opponent_score,
   totalTime: r.total_time,
   playerStats: (r.player_stats ?? []) as PlayerStat[],
+  teamId: r.team_id ?? null,
 });
 
-const gameToRow = (g: GameRecord, teamId: string | null) => ({
+const gameToRow = (g: GameRecord) => ({
   id: g.id,
-  team_id: teamId,
+  team_id: g.teamId ?? null,
   name: g.name,
   team_name: g.teamName,
   played_at: g.date,
@@ -82,8 +85,9 @@ export const useGameHistory = () => {
 
   // teamId links the game to a team when known (normal play); imported games pass null.
   const saveGame = useCallback(async (game: GameRecord, teamId: string | null = null): Promise<boolean> => {
-    setHistory(prev => [game, ...prev]);
-    const { error: err } = await neon.from('games').insert(gameToRow(game, teamId));
+    const record = { ...game, teamId };
+    setHistory(prev => [record, ...prev]);
+    const { error: err } = await neon.from('games').insert(gameToRow(record));
     if (err) {
       await handleWriteFailure(err, 'Failed to save game:', 'Could not save the game. Please try again.');
       return false;
@@ -117,6 +121,7 @@ export const useGameHistory = () => {
         );
         if (existingIndex >= 0) {
           // Merge player stats: replace matching players (by number), add new ones.
+          // The existing game keeps its team link (teamId) via the spread below.
           const mergedStats = [...updated[existingIndex].playerStats];
           for (const s of imp.playerStats) {
             const i = mergedStats.findIndex(x => x.number === s.number);
@@ -128,8 +133,9 @@ export const useGameHistory = () => {
           toPersist.push(mergedGame);
           merged++;
         } else {
-          updated.unshift(imp);
-          toPersist.push(imp);
+          const newGame = { ...imp, teamId: imp.teamId ?? null };
+          updated.unshift(newGame);
+          toPersist.push(newGame);
           added++;
         }
       }
@@ -139,7 +145,7 @@ export const useGameHistory = () => {
       if (toPersist.length > 0) {
         const { error: err } = await neon
           .from('games')
-          .upsert(toPersist.map(g => gameToRow(g, null)));
+          .upsert(toPersist.map(gameToRow));
         if (err) {
           await handleWriteFailure(err, 'Failed to import games:', 'Could not import the games. Please try again.');
           return { added: 0, merged: 0 };

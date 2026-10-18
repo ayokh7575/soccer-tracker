@@ -22,6 +22,26 @@ export const useGameTimer = () => {
     gameDurationRef.current = duration;
   }, []);
 
+  // Restores a game saved on this device. A game that was running when it was
+  // saved keeps running from `resumeFrom`, so the time the app was closed is
+  // counted (the match didn't stop) and half/full time still stop the clock.
+  const restoreGame = useCallback((snapshot: {
+    gameState: 'playing' | 'paused' | 'finished';
+    gameTime: number;
+    playerTimes: Record<string, number>;
+    activePlayerIds: string[];
+    duration: number;
+    resumeFrom: number;
+  }) => {
+    accumulatedTimeRef.current = snapshot.gameTime;
+    gameDurationRef.current = snapshot.duration;
+    lastTickRef.current = snapshot.gameState === 'playing' ? snapshot.resumeFrom : null;
+    setGameTime(snapshot.gameTime);
+    setPlayerTimes(snapshot.playerTimes);
+    setActivePlayerIds(snapshot.activePlayerIds);
+    setGameState(snapshot.gameState);
+  }, []);
+
   const togglePlayPause = useCallback(() => {
     setGameState(prev => {
       if (prev === 'playing') {
@@ -130,8 +150,9 @@ export const useGameTimer = () => {
     playerTimes, 
     activePlayerIds, 
     setActivePlayerIds,
-    startGame, 
-    togglePlayPause, 
+    startGame,
+    restoreGame,
+    togglePlayPause,
     cancelGame 
   };
 };
