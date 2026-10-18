@@ -31,6 +31,7 @@ browser). They are not secrets: access is enforced by the database.
 | `npm test` | Run the test suite once (`npm run test:watch` to keep watching) |
 | `npm run build` | Type-check and build to `dist/` |
 | `npm run deploy` | Run the tests, bump the patch version, build and publish to GitHub Pages |
+| `npm run deploy:test` | Publish the current code to `/soccer-tracker/test/` for trying on a phone, without touching the live app (the footer shows `-test` and the build time). The next `npm run deploy` removes it. |
 
 ## Database setup (Neon)
 
@@ -58,12 +59,29 @@ those definitions from steps 2 and 3 and don't need it.
 - Admins (`allowed_emails.is_admin = true`) can add and remove people in the
   app. They can't remove or edit their own entry.
 
+## Known limitation: iPhone home-screen app
+
+Sign-in uses a cookie set by Neon Auth on its own domain. iOS home-screen web
+apps ("Open as Web App") don't send that cookie back to a page on github.io, so
+the code is accepted but the app never sees the session. Neon Auth doesn't
+accept the session token any other way (no bearer support), so:
+
+- Use the app in a Safari or Chrome tab, or add it to the home screen with
+  **"Open as Web App" turned off** (the manifest also prefers browser mode).
+- If someone signs in from a home-screen app anyway, the app explains this
+  instead of failing with "Invalid OTP".
+
+The fix, if a full-screen app is wanted, is to serve the app and Neon Auth from
+the same site — e.g. host on Cloudflare Pages with a small proxy for
+`/api/auth/*` — so the cookie is first-party.
+
 ## Project layout
 
 ```
 src/
   App.tsx              Main screens: teams, squad, formation, live game wiring
   GameLive.tsx         Live game screen
+  EndGameDialog.tsx    Save / discard / keep playing when Stop is tapped
   views/               History and season stats screens
   hooks/               Data (useTeamStorage, useGameHistory, useAllowedEmails)
                        and game logic (useGameTimer, useGameActions, useDragAndDrop)
