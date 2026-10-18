@@ -131,7 +131,10 @@ This is the main screen you will use during the match.
 *   **Play/Pause:** Click the **Play** button to start the timer. Click **Pause** to stop it.
 *   **Opp. Goal:** Click to record a goal scored by the opponent.
 *   **Undo:** Click the yellow **Undo** button to revert the last action (goal, card, etc.).
-*   **End Game:** Click the red **Stop (Square)** button to finish the match.
+*   **End Game:** Click the red **Stop (Square)** button. You'll be asked what to do with the game:
+    *   **Save to history** saves the result and everyone's minutes, then opens History.
+    *   **Discard game (don't save)** throws the game away. Tap it twice to confirm, because it can't be undone.
+    *   **Keep playing** closes the question and carries on with the game.
 
 ### Substitutions
 1.  **Click to Sub:**
