@@ -19,6 +19,7 @@ Welcome to the Soccer Time Tracker! This application helps you manage your socce
     *   [Game Controls](#game-controls)
     *   [Substitutions](#substitutions)
     *   [Recording Events (Goals, Cards)](#recording-events)
+    *   [If the App Closes Mid-Game](#if-the-app-closes-mid-game)
 6.  [Game History & Statistics](#game-history--statistics)
 
 ---
@@ -130,7 +131,10 @@ This is the main screen you will use during the match.
 *   **Play/Pause:** Click the **Play** button to start the timer. Click **Pause** to stop it.
 *   **Opp. Goal:** Click to record a goal scored by the opponent.
 *   **Undo:** Click the yellow **Undo** button to revert the last action (goal, card, etc.).
-*   **End Game:** Click the red **Stop (Square)** button to finish the match.
+*   **End Game:** Click the red **Stop (Square)** button. You'll be asked what to do with the game:
+    *   **Save to history** saves the result and everyone's minutes, then opens History.
+    *   **Discard game (don't save)** throws the game away. Tap it twice to confirm, because it can't be undone.
+    *   **Keep playing** closes the question and carries on with the game.
 
 ### Substitutions
 1.  **Click to Sub:**
@@ -148,6 +152,15 @@ Right-click (or long-press on touch devices) on a player on the field to open th
 *   **Yellow Card:** Records a yellow card. A yellow card icon 🟨 appears.
     *   *Note:* A second yellow card automatically converts to a Red Card and removes the player from the field.
 *   **Red Card:** Records a red card. The player is removed from the field and marked with a red card icon 🟥.
+
+### If the App Closes Mid-Game
+The game in progress is kept on your device as you go, so nothing is lost if the page is refreshed, your phone closes the browser, or the battery dies.
+
+*   When you open the app again, the home screen shows an **Unfinished game** banner.
+*   Tap **Resume game** to carry on exactly where you were: score, cards, substitutions and every player's minutes.
+*   If the clock was running when the app closed, it keeps counting the time it was closed (the match didn't stop). It still stops automatically at half time and full time.
+*   Tap **Discard** if you don't want to keep that game. Starting a new game also replaces it.
+*   The game is kept on that device only, and an unfinished game is forgotten after 12 hours.
 
 ---
 
