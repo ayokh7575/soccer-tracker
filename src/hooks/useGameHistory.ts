@@ -72,6 +72,16 @@ export const useGameHistory = () => {
     reload();
   }, [reload]);
 
+  // Games are shared by every coach in the team's age group, so pick up
+  // games they saved whenever the app comes back to the screen.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') reload();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [reload]);
+
   // A write failed: surface why, then resync from the server so the optimistic
   // local state can't keep showing changes that were actually rejected.
   const handleWriteFailure = useCallback(
@@ -104,7 +114,9 @@ export const useGameHistory = () => {
   }, [handleWriteFailure]);
 
   const importGames = useCallback(
-    async (importedGames: GameRecord[]): Promise<{ added: number; merged: number }> => {
+    // teamId links newly imported games to a team (so its coaches see them);
+    // games merged into an existing record keep that record's team.
+    async (importedGames: GameRecord[], teamId: string | null = null): Promise<{ added: number; merged: number }> => {
       let added = 0;
       let merged = 0;
       const updated = [...history];
@@ -133,7 +145,7 @@ export const useGameHistory = () => {
           toPersist.push(mergedGame);
           merged++;
         } else {
-          const newGame = { ...imp, teamId: imp.teamId ?? null };
+          const newGame = { ...imp, teamId: imp.teamId ?? teamId };
           updated.unshift(newGame);
           toPersist.push(newGame);
           added++;

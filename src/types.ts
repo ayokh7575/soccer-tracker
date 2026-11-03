@@ -12,6 +12,8 @@ export interface Player {
 export interface Team {
   id: string;
   name: string;
+  // e.g. "U15" — decides which coaches can see and edit the team.
+  ageGroup?: string;
   defaultGameDuration?: number;
   playersPerSide?: 9 | 11;
   players: Player[];

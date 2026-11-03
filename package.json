@@ -22,9 +22,11 @@
     "generate-icons": "node scripts/generate-icons.js",
     "predeploy": "npm test && npm version patch && npm run build",
     "deploy": "gh-pages -d dist",
-    "deploy:test": "tsc --noEmit && vitest run && TEST_BUILD=1 vite build --base /soccer-tracker/test/ --outDir dist-test && gh-pages -d dist-test -e test --add"
+    "deploy:test": "tsc --noEmit && vitest run && TEST_BUILD=1 vite build --base /soccer-tracker/test/ --outDir dist-test && gh-pages -d dist-test -e test --add",
+    "test:db": "node neon/access-tests.mjs"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17",
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",

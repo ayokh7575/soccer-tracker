@@ -11,9 +11,9 @@ import { GameLive } from './GameLive';
 import { UserManual } from './UserManual';
 import { AdminUsers } from './AdminUsers';
 import { neon } from './neonClient';
-import { hasLocalDataToMigrate, hasPartialMigration, migrateLocalData } from './migrateLocalData';
 import { LiveGameSnapshot, loadLiveGame, saveLiveGame, clearLiveGame } from './liveGameStorage';
-import { POSITIONS, FORMATIONS_BY_SIDE, FORMATION_LAYOUTS } from './constants';
+import { POSITIONS, FORMATIONS_BY_SIDE, FORMATION_LAYOUTS, compareAgeGroups } from './constants';
+import { useMyAgeGroups } from './hooks/useMyAgeGroups';
 import { formatTime } from './utils/format';
 import { historyToCsv, parseHistoryCsv } from './historyCsv';
 import { parseTeamCsv } from './teamCsv';
@@ -60,11 +60,11 @@ export default function SoccerTimeTracker() {
   // Custom Hooks
   const {
     teams, loading: teamsLoading, error: teamsError, clearError: clearTeamsError,
-    saveTeam, deleteTeam, reload: reloadTeams,
+    saveTeam, deleteTeam,
   } = useTeamStorage();
   const {
     history, error: historyError, clearError: clearHistoryError,
-    saveGame, deleteGame: deleteGameHistory, importGames, reload: reloadHistory,
+    saveGame, deleteGame: deleteGameHistory, importGames,
   } = useGameHistory();
 
   const dataError = teamsError || historyError;
@@ -102,23 +102,30 @@ export default function SoccerTimeTracker() {
     return () => { cancelled = true; };
   }, []);
 
-  const [showMigrate, setShowMigrate] = useState(false);
-  useEffect(() => { setShowMigrate(hasLocalDataToMigrate()); }, []);
+  // Age groups this person can create and manage teams in (all of them for the admin).
+  const { ageGroups: myAgeGroups, loading: ageGroupsLoading } = useMyAgeGroups(currentEmail, isAdmin);
+  const [teamAgeGroupInput, setTeamAgeGroupInput] = useState('');
+  // With a single age group there's nothing to choose; otherwise the coach picks.
+  const newTeamAgeGroup = myAgeGroups.length === 1 ? myAgeGroups[0] : teamAgeGroupInput;
+  const canCreateTeams = myAgeGroups.length > 0;
 
-  const handleMigrateLocalData = async () => {
-    try {
-      const r = await migrateLocalData();
-      await Promise.all([reloadTeams(), reloadHistory()]);
-      setShowMigrate(false);
-      alert(`Imported ${r.teams} team(s), ${r.players} player(s), and ${r.games} game(s) into your account.`);
-    } catch (e) {
-      console.error('Local data import failed:', e);
-      // Whatever did import is kept; a retry only imports what's missing.
-      await Promise.all([reloadTeams(), reloadHistory()]);
-      alert('Some of your data could not be imported. Your local data is unchanged — tap "Import data" again to retry the rest.');
+  // Teams are shared by every coach in an age group, so the open team can be
+  // changed (or deleted) by someone else. When the team list reloads, show the
+  // latest version — except mid-game, where the game owns the squad.
+  useEffect(() => {
+    if (!currentTeam || view === 'game-live') return;
+    const latest = teams.find(t => t.id === currentTeam.id);
+    if (!latest) {
+      if (!teamsLoading && view === 'team-detail') {
+        setCurrentTeam(null);
+        setView('home');
+      }
+      return;
     }
-  };
-  
+    if (latest !== currentTeam) setCurrentTeam(latest);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teams]);
+
   const { 
     gameState, 
     gameTime, 
@@ -355,10 +362,11 @@ export default function SoccerTimeTracker() {
   };
 
   const handleCreateTeam = async () => {
-    if (teamNameInput.trim() && teamDefaultDuration > 0) {
+    if (teamNameInput.trim() && teamDefaultDuration > 0 && newTeamAgeGroup) {
       const team: Team = {
         id: crypto.randomUUID(),
         name: teamNameInput,
+        ageGroup: newTeamAgeGroup,
         defaultGameDuration: teamDefaultDuration,
         playersPerSide: teamPlayersPerSide,
         players: []
@@ -389,10 +397,15 @@ export default function SoccerTimeTracker() {
 
       const players = parseTeamCsv(content);
 
+      if (!newTeamAgeGroup) {
+        alert('Choose an age group for the team first.');
+        return;
+      }
       if (players.length > 0) {
         const newTeam: Team = {
           id: crypto.randomUUID(),
           name: teamName,
+          ageGroup: newTeamAgeGroup,
           defaultGameDuration: teamDefaultDuration,
           playersPerSide: teamPlayersPerSide,
           players
@@ -675,7 +688,7 @@ export default function SoccerTimeTracker() {
       if (importedGames === null) { alert('Invalid CSV file.'); return; }
       if (importedGames.length === 0) { alert('No valid game records found in CSV.'); return; }
 
-      importGames(importedGames).then(({ added, merged }) => {
+      importGames(importedGames, currentTeam?.id ?? null).then(({ added, merged }) => {
         alert(`Import complete: ${added} game(s) added, ${merged} game(s) merged.`);
       });
     };
@@ -771,6 +784,24 @@ export default function SoccerTimeTracker() {
     }
   };
 
+  // Teams under age-group headings, in age order (U6 … U18, Seniors).
+  const groupTeamsByAgeGroup = (list: Team[]): [string, Team[]][] => {
+    const groups = new Map<string, Team[]>();
+    for (const t of list) {
+      const key = t.ageGroup ?? 'No age group';
+      groups.set(key, [...(groups.get(key) ?? []), t]);
+    }
+    return [...groups.entries()].sort(([a], [b]) => compareAgeGroups(a, b));
+  };
+
+  // Deleting removes the team for every coach in its age group, with its players.
+  const handleDeleteTeam = (team: Team) => {
+    const who = team.ageGroup ? `every ${team.ageGroup} coach` : 'everyone';
+    if (window.confirm(`Delete "${team.name}" and its players for ${who}? This can't be undone.`)) {
+      deleteTeam(team.id);
+    }
+  };
+
   const renderHome = () => (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6 text-center">
@@ -810,24 +841,29 @@ export default function SoccerTimeTracker() {
         </div>
       )}
 
-      {!teamsLoading && showMigrate && (teams.length === 0 || hasPartialMigration()) && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-300 rounded-lg flex items-center justify-between gap-4">
-          <div className="text-sm text-blue-900">
-            <p className="font-semibold">Local data found on this device</p>
-            <p>Import your existing teams and game history into your account.</p>
-          </div>
-          <button
-            onClick={handleMigrateLocalData}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold whitespace-nowrap"
-          >
-            Import data
-          </button>
+      {!ageGroupsLoading && !canCreateTeams && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-300 rounded-lg text-sm text-blue-900">
+          <p className="font-semibold">You haven&rsquo;t been given an age group yet</p>
+          <p>Ask the administrator to add you to an age group (for example U15). You&rsquo;ll then be able to create and manage that age group&rsquo;s teams.</p>
         </div>
       )}
 
+      {canCreateTeams && (
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-3">Create New Team</h2>
         <div className="flex flex-wrap gap-2 mb-4">
+          {myAgeGroups.length > 1 && (
+            <select
+              value={teamAgeGroupInput}
+              onChange={(e) => setTeamAgeGroupInput(e.target.value)}
+              className="px-3 py-2 border rounded"
+              aria-label="Age group"
+              title="Age group"
+            >
+              <option value="">Age group…</option>
+              {myAgeGroups.map(ag => <option key={ag} value={ag}>{ag}</option>)}
+            </select>
+          )}
           <input
             type="text"
             value={teamNameInput}
@@ -855,8 +891,8 @@ export default function SoccerTimeTracker() {
           </select>
           <button
             onClick={handleCreateTeam}
-            disabled={!teamNameInput.trim() || teamDefaultDuration <= 0}
-            className={`px-6 py-2 text-white rounded ${!teamNameInput.trim() || teamDefaultDuration <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+            disabled={!teamNameInput.trim() || teamDefaultDuration <= 0 || !newTeamAgeGroup}
+            className={`px-6 py-2 text-white rounded ${!teamNameInput.trim() || teamDefaultDuration <= 0 || !newTeamAgeGroup ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
             Create
           </button>
@@ -876,33 +912,45 @@ export default function SoccerTimeTracker() {
           </label>
         </div>
         <p className="text-xs text-gray-400 mt-1 ml-1">Format: First Name, Last Name, Number, Position, Secondary Positions...</p>
+        {myAgeGroups.length === 1 && (
+          <p className="text-xs text-gray-500 mt-2 ml-1">New teams go in <span className="font-semibold">{myAgeGroups[0]}</span>.</p>
+        )}
       </div>
+      )}
       
       <div>
-        <h2 className="text-xl font-semibold mb-3">My Teams</h2>
+        <h2 className="text-xl font-semibold mb-3">Teams</h2>
         {teamsLoading ? (
           <p className="text-gray-500">Loading teams…</p>
         ) : teams.length === 0 ? (
           <p className="text-gray-500">No teams yet. Create one above!</p>
         ) : (
-          <div className="space-y-2">
-            {teams.map(team => (
-              <div key={team.id} className="flex items-center justify-between p-4 border rounded hover:bg-gray-50">
-                <div className="flex-1 cursor-pointer" onClick={() => {
-                  setCurrentTeam(team);
-                  setView('team-detail');
-                  cancelEditing();
-                }}>
-                  <h3 className="font-semibold">{team.name}</h3>
-                  <p className="text-sm text-gray-600">{team.players.length} players</p>
+          <div className="space-y-6">
+            {groupTeamsByAgeGroup(teams).map(([ageGroup, groupTeams]) => (
+              <section key={ageGroup}>
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">{ageGroup}</h3>
+                <div className="space-y-2">
+                  {groupTeams.map(team => (
+                    <div key={team.id} className="flex items-center justify-between p-4 border rounded hover:bg-gray-50">
+                      <div className="flex-1 cursor-pointer" onClick={() => {
+                        setCurrentTeam(team);
+                        setView('team-detail');
+                        cancelEditing();
+                      }}>
+                        <h3 className="font-semibold">{team.name}</h3>
+                        <p className="text-sm text-gray-600">{team.players.length} players</p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteTeam(team)}
+                        aria-label={`Delete ${team.name}`}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <button
-                  onClick={() => deleteTeam(team.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
+              </section>
             ))}
           </div>
         )}
@@ -935,10 +983,36 @@ export default function SoccerTimeTracker() {
         </div>
       </div>
       
-      <h1 className="text-3xl font-bold mb-6">
+      <h1 className="text-3xl font-bold mb-2">
         {currentTeam.name}
         <span className="text-lg font-normal text-gray-500 ml-2">({currentTeam.playersPerSide ?? 11}-a-side)</span>
       </h1>
+      <div className="mb-6 flex items-center gap-2 text-sm text-gray-600">
+        <span>Age group:</span>
+        {myAgeGroups.length > 1 ? (
+          <select
+            value={currentTeam.ageGroup ?? ''}
+            onChange={(e) => {
+              const ageGroup = e.target.value;
+              if (ageGroup && ageGroup !== currentTeam.ageGroup &&
+                  window.confirm(`Move "${currentTeam.name}" to ${ageGroup}? Only ${ageGroup} coaches will see it.`)) {
+                saveCurrentTeam({ ...currentTeam, ageGroup });
+              }
+            }}
+            aria-label="Team age group"
+            className="px-2 py-1 border rounded"
+          >
+            {!currentTeam.ageGroup && <option value="">None</option>}
+            {currentTeam.ageGroup && !myAgeGroups.includes(currentTeam.ageGroup) && (
+              <option value={currentTeam.ageGroup}>{currentTeam.ageGroup}</option>
+            )}
+            {myAgeGroups.map(ag => <option key={ag} value={ag}>{ag}</option>)}
+          </select>
+        ) : (
+          <span className="font-semibold text-gray-800">{currentTeam.ageGroup ?? 'None'}</span>
+        )}
+        <span className="text-gray-400">· shared with all {currentTeam.ageGroup ?? ''} coaches</span>
+      </div>
 
       <div className="mb-6" ref={addPlayerSectionRef}>
         <div className="flex items-center gap-3 mb-3">

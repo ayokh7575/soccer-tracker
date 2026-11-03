@@ -58,3 +58,16 @@ export const FORMATION_LAYOUTS: Record<string, Record<string, SlotPosition>> = {
     CF:  { x: 50, y: 12 }
   }
 };
+
+// Age groups the admin can assign coaches to. Must match is_valid_age_group()
+// in neon/age-groups.sql — change both together.
+export const AGE_GROUPS = [
+  'U6', 'U7', 'U8', 'U9', 'U10', 'U11', 'U12', 'U13', 'U14', 'U15', 'U16', 'U17', 'U18', 'Seniors',
+] as const;
+
+// Sorts age-group labels in list order (U6 … U18, Seniors); unknown ones last.
+export const compareAgeGroups = (a?: string, b?: string) => {
+  const ia = AGE_GROUPS.indexOf((a ?? '') as any);
+  const ib = AGE_GROUPS.indexOf((b ?? '') as any);
+  return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+};

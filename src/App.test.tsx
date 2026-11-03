@@ -2,19 +2,29 @@ import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import App from './App';
 
 // Mock Neon: an authenticated session (so AuthGate renders the app) and a
-// chainable, awaitable query builder (plain functions so mock resets won't wipe
-// them). The app's flows are driven by in-memory React state, so the data layer
-// being a no-op here is fine for these UI tests.
+// chainable, awaitable query builder per table (plain functions so mock resets
+// won't wipe them). The app's flows are driven by in-memory React state, so
+// the data layer only needs to return the coach's age groups and record writes.
+const h = vi.hoisted(() => ({
+  ageGroups: [{ age_group: 'U15' }] as { age_group: string }[],
+  writes: [] as { table: string; op: string; rows: any }[],
+}));
+
 vi.mock('./neonClient', () => {
-  const q: any = {};
-  for (const m of ['select', 'order', 'upsert', 'insert', 'delete', 'eq', 'not']) {
-    q[m] = () => q;
-  }
-  q.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
-    resolve({ data: [], error: null });
+  const query = (table: string) => {
+    const q: any = {};
+    for (const m of ['select', 'order', 'eq', 'not', 'in']) q[m] = () => q;
+    for (const op of ['upsert', 'insert']) {
+      q[op] = (rows: any) => { h.writes.push({ table, op, rows }); return q; };
+    }
+    q.delete = () => { h.writes.push({ table, op: 'delete', rows: null }); return q; };
+    q.then = (resolve: (v: { data: unknown[]; error: null }) => unknown) =>
+      resolve({ data: table === 'coach_age_groups' ? h.ageGroups : [], error: null });
+    return q;
+  };
   return {
     neon: {
-      from: () => q,
+      from: (table: string) => query(table),
       rpc: async () => ({ data: false, error: null }),
       auth: {
         useSession: () => ({
@@ -41,6 +51,64 @@ beforeEach(() => {
   window.alert = vi.fn();
   // A live game is kept on the device between renders; start each test clean.
   localStorage.clear();
+  h.ageGroups = [{ age_group: 'U15' }];
+  h.writes = [];
+});
+
+describe('Age groups', () => {
+  test('a coach with one age group creates teams in it, listed under that heading', async () => {
+    render(<App />);
+    fireEvent.change(await screen.findByPlaceholderText('Team name'), { target: { value: 'U15 Blue' } });
+    expect(screen.getByText(/New teams go in/)).toHaveTextContent('New teams go in U15.');
+    fireEvent.click(screen.getByText('Create'));
+    await screen.findByPlaceholderText('First name');
+
+    const teamWrite = h.writes.find(w => w.table === 'teams' && w.op === 'upsert');
+    expect(teamWrite?.rows).toMatchObject({ name: 'U15 Blue', age_group: 'U15' });
+    expect(screen.getByText(/Age group:/).parentElement).toHaveTextContent('U15');
+
+    fireEvent.click(screen.getByText(/Back to Teams/));
+    expect(await screen.findByRole('heading', { name: 'U15' })).toBeInTheDocument();
+    expect(screen.getByText('U15 Blue')).toBeInTheDocument();
+  });
+
+  test('a coach with several age groups must pick one', async () => {
+    h.ageGroups = [{ age_group: 'U16' }, { age_group: 'U15' }];
+    render(<App />);
+    fireEvent.change(await screen.findByPlaceholderText('Team name'), { target: { value: 'Mixed' } });
+    const select = await screen.findByLabelText('Age group');
+    expect([...(select as HTMLSelectElement).options].map(o => o.value)).toEqual(['', 'U15', 'U16']);
+    expect(screen.getByText('Create')).toBeDisabled();
+
+    fireEvent.change(select, { target: { value: 'U16' } });
+    fireEvent.click(screen.getByText('Create'));
+    await screen.findByPlaceholderText('First name');
+    expect(h.writes.find(w => w.table === 'teams')?.rows.age_group).toBe('U16');
+  });
+
+  test('a coach without an age group is told to ask the administrator', async () => {
+    h.ageGroups = [];
+    render(<App />);
+    expect(await screen.findByText(/haven.t been given an age group yet/)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Team name')).not.toBeInTheDocument();
+  });
+
+  test('deleting a team asks first, since it is shared with the age group', async () => {
+    render(<App />);
+    fireEvent.change(await screen.findByPlaceholderText('Team name'), { target: { value: 'Temp' } });
+    fireEvent.click(screen.getByText('Create'));
+    await screen.findByPlaceholderText('First name');
+    fireEvent.click(screen.getByText(/Back to Teams/));
+
+    (window.confirm as any).mockReturnValueOnce(false);
+    fireEvent.click(await screen.findByLabelText('Delete Temp'));
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('every U15 coach'));
+    expect(screen.getByText('Temp')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Delete Temp'));
+    expect(screen.queryByText('Temp')).not.toBeInTheDocument();
+    expect(h.writes.some(w => w.table === 'teams' && w.op === 'delete')).toBe(true);
+  });
 });
 
 describe('SoccerTimeTracker Substitution Tests', () => {

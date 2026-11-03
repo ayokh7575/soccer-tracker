@@ -43,12 +43,24 @@ Once authenticated, you will see the **Home Screen**. This is your central hub f
 
 ## 2. Managing Teams
 
+### Age groups
+Every team belongs to an **age group** (U6–U18 or Seniors). The administrator gives each coach one or more age groups in **Manage access**.
+*   You see, and can edit or delete, **all teams in your age groups** — including teams created by other coaches of the same age group. You share their players, game history and stats.
+*   You can't see other age groups' teams.
+*   If you haven't been given an age group yet, the Home Screen says so: ask the administrator.
+
+On the Home Screen, teams are listed under their age-group heading.
+
 ### Creating a Team
 1.  On the Home Screen, locate the **Create New Team** section.
-2.  Enter a **Team Name** (e.g., "Tigers FC").
-3.  Enter a **Default Duration** for games in minutes (e.g., "80").
-4.  Select **11-a-side** or **9-a-side** from the dropdown (defaults to 11-a-side).
-5.  Click the **Create** button.
+2.  If you have more than one age group, choose the **Age group** first. With just one, new teams go in it automatically.
+3.  Enter a **Team Name** (e.g., "U15 Blue").
+4.  Enter a **Default Duration** for games in minutes (e.g., "80").
+5.  Select **11-a-side** or **9-a-side** from the dropdown (defaults to 11-a-side).
+6.  Click the **Create** button.
+
+### Deleting a Team
+Tap the bin icon next to the team on the Home Screen. Because the team is shared, deleting it removes it — and its players — for every coach in that age group, so you'll be asked to confirm.
 
 > The players-per-side setting determines which formations are available when you set up a game. It is also displayed next to the team name on the team page.
 
@@ -64,7 +76,7 @@ If you have a CSV file with your roster, you can import it directly.
 
 ## 3. Managing Players
 
-Click on a team name from the "My Teams" list to enter the **Team Detail View**. The team name is shown with its players-per-side setting (e.g., *NCFC U16 (9-a-side)*). From here you can add, edit, and delete players.
+Click on a team name from the **Teams** list to enter the **Team Detail View**. The team name is shown with its players-per-side setting (e.g., *NCFC U16 (9-a-side)*). From here you can add, edit, and delete players.
 
 ![Team Detail screen](./images/add-player.png)
 

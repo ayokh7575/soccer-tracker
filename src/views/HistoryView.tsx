@@ -18,7 +18,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   history, currentTeam, onImport, onExport, onDelete, onBack,
 }) => {
   const displayedHistory = currentTeam 
-    ? history.filter(game => game.teamName === currentTeam.name)
+    ? history.filter(game => game.teamId === currentTeam.id)
     : history;
 
   return (
